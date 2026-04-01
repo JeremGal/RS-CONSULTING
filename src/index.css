@@ -1,0 +1,93 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@keyframes slideIn { from { transform: translateX(100px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes fadeUp { from { transform: translateY(16px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+/* Leaflet popup fix */
+.leaflet-popup-content-wrapper { background: #1e293b !important; color: #fff !important; border-radius: 12px !important; }
+.leaflet-popup-tip { background: #1e293b !important; }
+.leaflet-popup-close-button { color: #94a3b8 !important; }
+.leaflet-container { font-family: Inter, sans-serif !important; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #334155 transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: #334155;
+  border-radius: 3px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: #475569;
+}
+
+@keyframes slide-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in {
+  animation: slide-in 0.3s ease-out;
+}
+
+/* Better table on mobile */
+@media (max-width: 768px) {
+  table {
+    font-size: 0.8rem;
+  }
+}
+
+/* Focus styles */
+input:focus, select:focus, textarea:focus {
+  outline: none;
+}
+
+/* Checkbox styling */
+input[type="checkbox"] {
+  accent-color: #10b981;
+}
+
+/* Select arrow */
+select {
+  appearance: auto;
+}
+
+/* Smooth transitions */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Pulse once animation for notifications */
+@keyframes pulseOnce {
+  0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+  70% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+.animate-pulse-once {
+  animation: pulseOnce 1s ease-out;
+}

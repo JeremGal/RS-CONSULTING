@@ -1,0 +1,209 @@
+/* =============================================
+   RS CONSULTING CRM — Light Theme Overrides
+   Only active when [data-theme="light"] is set
+   ============================================= */
+
+/* ===== BACKGROUNDS ===== */
+[data-theme="light"] .bg-slate-900 { background-color: #f1f5f9 !important; }
+[data-theme="light"] .bg-slate-800 { background-color: #ffffff !important; }
+[data-theme="light"] .bg-slate-700 { background-color: #f1f5f9 !important; }
+[data-theme="light"] .bg-slate-600 { background-color: #e2e8f0 !important; }
+
+/* Opacity variants */
+[data-theme="light"] .bg-slate-800\/95 { background-color: rgba(255,255,255,0.97) !important; }
+[data-theme="light"] .bg-slate-800\/90 { background-color: rgba(255,255,255,0.92) !important; }
+[data-theme="light"] .bg-slate-800\/50 { background-color: rgba(255,255,255,0.6) !important; }
+[data-theme="light"] .bg-slate-800\/30 { background-color: rgba(241,245,249,0.5) !important; }
+[data-theme="light"] .bg-slate-800\/20 { background-color: rgba(241,245,249,0.3) !important; }
+[data-theme="light"] .bg-slate-700\/50 { background-color: rgba(226,232,240,0.5) !important; }
+[data-theme="light"] .bg-slate-700\/40 { background-color: rgba(226,232,240,0.4) !important; }
+[data-theme="light"] .bg-slate-700\/30 { background-color: rgba(226,232,240,0.3) !important; }
+
+/* Hover backgrounds */
+[data-theme="light"] .hover\:bg-slate-700:hover { background-color: #e2e8f0 !important; }
+[data-theme="light"] .hover\:bg-slate-700\/50:hover { background-color: rgba(226,232,240,0.6) !important; }
+[data-theme="light"] .hover\:bg-slate-700\/30:hover { background-color: rgba(226,232,240,0.4) !important; }
+[data-theme="light"] .hover\:bg-slate-600:hover { background-color: #cbd5e1 !important; }
+
+/* Overlay */
+[data-theme="light"] .bg-black\/60 { background-color: rgba(0,0,0,0.25) !important; }
+[data-theme="light"] .bg-black\/40 { background-color: rgba(0,0,0,0.15) !important; }
+
+/* ===== TEXT COLORS ===== */
+[data-theme="light"] .text-white { color: #0f172a !important; }
+[data-theme="light"] .text-slate-300 { color: #475569 !important; }
+[data-theme="light"] .text-slate-400 { color: #64748b !important; }
+[data-theme="light"] .text-slate-500 { color: #94a3b8 !important; }
+[data-theme="light"] .text-slate-600 { color: #94a3b8 !important; }
+[data-theme="light"] .text-black { color: #0f172a !important; }
+
+/* Hover text */
+[data-theme="light"] .hover\:text-white:hover { color: #0f172a !important; }
+
+/* Placeholder */
+[data-theme="light"] .placeholder-slate-400::placeholder { color: #94a3b8 !important; }
+
+/* ===== KEEP WHITE TEXT ON COLORED BACKGROUNDS ===== */
+/* Same element: bg + text-white */
+[data-theme="light"] .bg-emerald-500.text-white,
+[data-theme="light"] .bg-emerald-400.text-white,
+[data-theme="light"] .bg-emerald-600.text-white,
+[data-theme="light"] .bg-red-500.text-white,
+[data-theme="light"] .bg-red-400.text-white,
+[data-theme="light"] .bg-red-600.text-white,
+[data-theme="light"] .bg-blue-500.text-white,
+[data-theme="light"] .bg-amber-500.text-white,
+[data-theme="light"] .bg-amber-400.text-white,
+[data-theme="light"] .bg-amber-600.text-white,
+[data-theme="light"] .bg-purple-500.text-white { color: #ffffff !important; }
+
+/* Child text-white inside colored parent */
+[data-theme="light"] .bg-emerald-500 .text-white,
+[data-theme="light"] .bg-emerald-400 .text-white,
+[data-theme="light"] .bg-emerald-600 .text-white,
+[data-theme="light"] .bg-red-500 .text-white,
+[data-theme="light"] .bg-red-400 .text-white,
+[data-theme="light"] .bg-red-600 .text-white,
+[data-theme="light"] .bg-blue-500 .text-white,
+[data-theme="light"] .bg-amber-500 .text-white,
+[data-theme="light"] .bg-amber-400 .text-white,
+[data-theme="light"] .bg-amber-600 .text-white,
+[data-theme="light"] .bg-purple-500 .text-white { color: #ffffff !important; }
+
+/* Colored elements with text-white (icons, text inside colored containers) */
+[data-theme="light"] .bg-emerald-500 .text-xs,
+[data-theme="light"] .bg-emerald-500 .font-bold,
+[data-theme="light"] .bg-red-500 .text-xs,
+[data-theme="light"] .bg-blue-500 .text-xs,
+[data-theme="light"] .bg-blue-500 .font-bold,
+[data-theme="light"] .bg-amber-500 .text-xs { color: #ffffff !important; }
+
+/* Alert banner text */
+[data-theme="light"] .bg-emerald-500 span,
+[data-theme="light"] .bg-red-500 span { color: #ffffff !important; }
+
+/* Theme toggle button — immune to overrides */
+[data-theme="light"] .crm-theme-toggle { 
+  background-color: #ffffff !important; 
+  color: #334155 !important; 
+  border: 1px solid #e2e8f0 !important; 
+}
+[data-theme="light"] .crm-theme-toggle:hover { 
+  background-color: #f1f5f9 !important; 
+}
+
+/* ===== BORDERS ===== */
+[data-theme="light"] .border-slate-700 { border-color: #e2e8f0 !important; }
+[data-theme="light"] .border-slate-700\/50 { border-color: rgba(226,232,240,0.5) !important; }
+[data-theme="light"] .border-slate-600 { border-color: #cbd5e1 !important; }
+[data-theme="light"] .border-slate-500 { border-color: #cbd5e1 !important; }
+[data-theme="light"] .border-slate-500\/30 { border-color: rgba(203,213,225,0.3) !important; }
+
+/* Hover borders */
+[data-theme="light"] .hover\:border-slate-600:hover { border-color: #94a3b8 !important; }
+
+/* Dashed borders */
+[data-theme="light"] .border-dashed.border-slate-600 { border-color: #cbd5e1 !important; }
+[data-theme="light"] .hover\:border-emerald-500:hover { border-color: #10b981 !important; }
+
+/* ===== DIVIDERS ===== */
+[data-theme="light"] .divide-slate-700\/50 > :not([hidden]) ~ :not([hidden]) { 
+  border-color: rgba(226,232,240,0.5) !important; 
+}
+
+/* ===== INPUTS, SELECTS, TEXTAREAS ===== */
+[data-theme="light"] input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="file"]),
+[data-theme="light"] select,
+[data-theme="light"] textarea {
+  background-color: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+[data-theme="light"] input:focus,
+[data-theme="light"] select:focus,
+[data-theme="light"] textarea:focus {
+  border-color: #10b981 !important;
+  box-shadow: 0 0 0 1px #10b981 !important;
+}
+
+/* Color inputs */
+[data-theme="light"] input[type="color"] {
+  background-color: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+}
+
+/* Checkboxes */
+[data-theme="light"] input[type="checkbox"] {
+  accent-color: #10b981;
+}
+
+/* ===== SHADOWS (softer in light mode) ===== */
+[data-theme="light"] .shadow-2xl { box-shadow: 0 25px 50px -12px rgba(0,0,0,0.08) !important; }
+[data-theme="light"] .shadow-xl { box-shadow: 0 20px 25px -5px rgba(0,0,0,0.05) !important; }
+[data-theme="light"] .shadow-lg { box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05), 0 4px 6px -4px rgba(0,0,0,0.03) !important; }
+
+/* Emerald shadows stay but lighter */
+[data-theme="light"] .shadow-emerald-500\/20 { --tw-shadow-color: rgba(16,185,129,0.1) !important; }
+
+/* ===== SCROLLBAR ===== */
+[data-theme="light"] ::-webkit-scrollbar { width: 8px; height: 8px; }
+[data-theme="light"] ::-webkit-scrollbar-track { background: #f1f5f9; }
+[data-theme="light"] ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+/* ===== SPECIAL COMPONENTS ===== */
+
+/* Backdrop blur panels */
+[data-theme="light"] .backdrop-blur { backdrop-filter: blur(12px); }
+[data-theme="light"] .backdrop-blur-sm { backdrop-filter: blur(6px); }
+
+/* Map filter panel */
+[data-theme="light"] .bg-slate-800\/95.backdrop-blur { background-color: rgba(255,255,255,0.95) !important; }
+
+/* Calendar day cells */
+[data-theme="light"] .border-emerald-500.bg-emerald-500\/10 { 
+  background-color: rgba(16,185,129,0.08) !important; 
+  border-color: #10b981 !important; 
+}
+[data-theme="light"] .border-amber-500.bg-amber-500\/10 { 
+  background-color: rgba(245,158,11,0.08) !important; 
+  border-color: #f59e0b !important; 
+}
+
+/* Reminder notification cards */
+[data-theme="light"] .shadow-emerald-500\/20 { box-shadow: 0 25px 50px -12px rgba(16,185,129,0.1) !important; }
+
+/* Active filter buttons */
+[data-theme="light"] .bg-emerald-500\/20 { background-color: rgba(16,185,129,0.12) !important; }
+[data-theme="light"] .bg-emerald-500\/10 { background-color: rgba(16,185,129,0.08) !important; }
+[data-theme="light"] .bg-red-500\/10 { background-color: rgba(239,68,68,0.08) !important; }
+[data-theme="light"] .bg-red-500\/20 { background-color: rgba(239,68,68,0.12) !important; }
+[data-theme="light"] .bg-amber-500\/10 { background-color: rgba(245,158,11,0.08) !important; }
+[data-theme="light"] .bg-amber-500\/20 { background-color: rgba(245,158,11,0.12) !important; }
+[data-theme="light"] .bg-blue-500\/20 { background-color: rgba(59,130,246,0.12) !important; }
+[data-theme="light"] .bg-purple-500\/20 { background-color: rgba(168,85,247,0.12) !important; }
+
+/* Hover colored overlays */
+[data-theme="light"] .hover\:bg-red-500\/20:hover { background-color: rgba(239,68,68,0.12) !important; }
+[data-theme="light"] .hover\:bg-red-500\/10:hover { background-color: rgba(239,68,68,0.08) !important; }
+[data-theme="light"] .hover\:bg-red-500\/30:hover { background-color: rgba(239,68,68,0.18) !important; }
+[data-theme="light"] .hover\:bg-emerald-400:hover { background-color: #34d399 !important; }
+[data-theme="light"] .hover\:bg-amber-500:hover { background-color: #f59e0b !important; }
+
+/* Overdue banner */
+[data-theme="light"] .bg-amber-500\/95 { background-color: rgba(245,158,11,0.9) !important; }
+
+/* DB error banner */
+[data-theme="light"] .bg-red-500\/90 { background-color: rgba(239,68,68,0.9) !important; }
+
+/* ===== LEAFLET MAP OVERRIDES ===== */
+[data-theme="light"] .leaflet-container { background: #f1f5f9; }
+[data-theme="light"] .leaflet-popup-content-wrapper { background: #ffffff; color: #0f172a; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+[data-theme="light"] .leaflet-popup-tip { background: #ffffff; }
+
+/* ===== TRANSITION ===== */
+[data-theme="light"] body,
+[data-theme="light"] .bg-slate-900,
+[data-theme="light"] .bg-slate-800 {
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
