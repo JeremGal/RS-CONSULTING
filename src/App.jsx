@@ -144,8 +144,8 @@ const zoneColors = { H1: '#3B82F6', H2: '#F59E0B', H3: '#EF4444' };
 // Commission et reste à charge PAC auto-calculé selon catégorie aide + zone climatique
 const calcPacCommission = (categorie, zone) => {
   if (!categorie || !zone) return null;
-  if (categorie === 'bleu' && zone === 'H1') return { reste_a_charge: 3000, commission: 1 };
-  if (categorie === 'bleu' && (zone === 'H2' || zone === 'H3')) return { reste_a_charge: 2500, commission: 1 };
+  if (categorie === 'bleu' && zone === 'H1') return { reste_a_charge: 1, commission: 3000 };
+  if (categorie === 'bleu' && (zone === 'H2' || zone === 'H3')) return { reste_a_charge: 1, commission: 2500 };
   if (categorie === 'jaune' && zone === 'H1') return { reste_a_charge: 2500, commission: 2000 };
   if (categorie === 'jaune' && (zone === 'H2' || zone === 'H3')) return { reste_a_charge: 3000, commission: 2000 };
   return null;
