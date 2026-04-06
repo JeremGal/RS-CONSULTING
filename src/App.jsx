@@ -119,10 +119,47 @@ const getProductCode = (prospect, products) => {
   if (!p) return null;
   const name = (p.name || '').toLowerCase().trim();
   if (name.includes('iti') || name.includes('isolation')) return 'iti';
-  if (name.includes('pac') || name.includes('pompe')) return 'pac';
+  if (name.includes('pac') || name.includes('pompe') || name.includes('split')) return 'pac';
   if (name.includes('led')) return 'led';
   return null;
 };
+
+// Zone climatique par département (code postal → 2 premiers chiffres → département)
+const ZONE_H1_DEPTS = ['01','02','03','05','08','10','14','15','19','21','23','25','27','28','38','39','42','43','45','51','52','54','55','57','58','59','60','61','62','63','67','68','69','70','71','73','74','75','76','77','78','80','87','88','89','90','91','92','93','94','95'];
+const ZONE_H2_DEPTS = ['04','07','09','12','16','17','18','22','24','26','29','31','32','33','35','36','37','40','41','44','46','47','48','49','50','53','56','64','65','72','79','81','82','84','85','86'];
+const ZONE_H3_DEPTS = ['06','11','13','20','2A','2B','30','34','66','83'];
+
+const getZoneClimatique = (postalCode) => {
+  if (!postalCode || postalCode.length < 2) return null;
+  let dept = postalCode.substring(0, 2);
+  // Corse: 20xxx → H3
+  if (ZONE_H1_DEPTS.includes(dept)) return 'H1';
+  if (ZONE_H2_DEPTS.includes(dept)) return 'H2';
+  if (ZONE_H3_DEPTS.includes(dept)) return 'H3';
+  return null;
+};
+
+const zoneColors = { H1: '#3B82F6', H2: '#F59E0B', H3: '#EF4444' };
+
+// Commission et reste à charge PAC auto-calculé selon catégorie aide + zone climatique
+const calcPacCommission = (categorie, zone) => {
+  if (!categorie || !zone) return null;
+  if (categorie === 'bleu' && zone === 'H1') return { reste_a_charge: 3000, commission: 1 };
+  if (categorie === 'bleu' && (zone === 'H2' || zone === 'H3')) return { reste_a_charge: 2500, commission: 1 };
+  if (categorie === 'jaune' && zone === 'H1') return { reste_a_charge: 2500, commission: 2000 };
+  if (categorie === 'jaune' && (zone === 'H2' || zone === 'H3')) return { reste_a_charge: 3000, commission: 2000 };
+  return null;
+};
+
+// Types de chauffage existant
+const typeChauffageOptions = [
+  { value: 'pac_air_eau', label: 'PAC Air/Eau' },
+  { value: 'pac_air_air', label: 'PAC Air/Air' },
+  { value: 'electrique', label: 'Électrique' },
+  { value: 'bois', label: 'Bois' },
+  { value: 'gaz', label: 'Gaz' },
+  { value: 'fuel', label: 'Fuel' },
+];
 
 // =====================================================
 // BASE COMPONENTS
@@ -1085,7 +1122,7 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
       setForm(prev => {
         const merged = { ...prospect };
         // Preserve values that exist in form but are null/undefined in prospect (RPC might not return all cols)
-        const protectedFields = ['nb_led','nb_led_reel','ca_previsionnel','ca_reel','surface','type_led','mode_pose','puissance_pac','nb_panneaux','notes_admin','source','source_id','closer_id','date_pose','nb_personnes_foyer','revenu_fiscal_ref','is_ile_de_france','categorie_aide','reste_a_charge','surface_sous_sol','surface_comble','surface_isoler_total','has_vmc','surface_habitable','surface_chauffer'];
+        const protectedFields = ['nb_led','nb_led_reel','ca_previsionnel','ca_reel','surface','type_led','mode_pose','puissance_pac','nb_panneaux','notes_admin','source','source_id','closer_id','date_pose','nb_personnes_foyer','revenu_fiscal_ref','is_ile_de_france','categorie_aide','reste_a_charge','surface_sous_sol','surface_comble','surface_isoler_total','has_vmc','surface_habitable','surface_chauffer','zone_climatique','commission_pac','ballon_type','type_chauffage','date_audit','numero_fiscal','type_logement','type_projet','surface_batiment','surface_mur_interieur','surface_mur_exterieur','surface_fenetre','has_pac_split'];
         protectedFields.forEach(k => {
           if ((merged[k] === undefined || merged[k] === null) && prev[k] != null && prev[k] !== '') {
             merged[k] = prev[k];
@@ -1110,15 +1147,26 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
   const handleSave = async () => {
     clearTimeout(autoSaveTimer.current);
     const saveData = { ...form };
-    ['nb_led','nb_led_reel','ca_previsionnel','ca_reel','surface','puissance_pac','nb_panneaux','nb_personnes_foyer','revenu_fiscal_ref','reste_a_charge','surface_sous_sol','surface_comble','surface_isoler_total','surface_habitable','surface_chauffer'].forEach(k => {
+    ['nb_led','nb_led_reel','ca_previsionnel','ca_reel','surface','puissance_pac','nb_panneaux','nb_personnes_foyer','revenu_fiscal_ref','reste_a_charge','surface_sous_sol','surface_comble','surface_isoler_total','surface_habitable','surface_chauffer','commission_pac','surface_batiment','surface_mur_interieur','surface_mur_exterieur','surface_fenetre'].forEach(k => {
       if (saveData[k] !== null && saveData[k] !== undefined && saveData[k] !== '') saveData[k] = Number(saveData[k]);
     });
+    // Auto-compute zone climatique from postal code
+    if (saveData.postal_code) {
+      const zone = getZoneClimatique(saveData.postal_code);
+      if (zone) saveData.zone_climatique = zone;
+    }
     // Auto-compute categorie_aide et surface_isoler_total
     const cat = calcCategorieAide(saveData.nb_personnes_foyer, saveData.revenu_fiscal_ref, saveData.is_ile_de_france);
     if (cat) saveData.categorie_aide = cat;
     const ss = parseFloat(saveData.surface_sous_sol) || 0;
     const sc = parseFloat(saveData.surface_comble) || 0;
     if (ss + sc > 0) saveData.surface_isoler_total = ss + sc;
+    // Auto-compute PAC commission (only for PAC products)
+    const pCode = getProductCode(prospect, products);
+    if (pCode === 'pac' && cat && saveData.zone_climatique) {
+      const pacCalc = calcPacCommission(cat, saveData.zone_climatique);
+      if (pacCalc) { saveData.reste_a_charge = pacCalc.reste_a_charge; saveData.commission_pac = pacCalc.commission; }
+    }
     lastSavedRef.current = { time: Date.now(), data: saveData };
     try { await onUpdate(prospect.id, saveData); refetchFull(); setEditing(false); } catch(e) { showAlert(e.message,'error'); }
   };
@@ -1131,7 +1179,10 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
     } catch(e) { showAlert(e.message,'error'); }
   };
 
-  const handleAddrSelect = item => { setForm(f => ({ ...f, address: item.name, postal_code: item.postcode, city: item.city?.toUpperCase(), latitude: item.latitude, longitude: item.longitude })); };
+  const handleAddrSelect = item => {
+    const zone = getZoneClimatique(item.postcode);
+    setForm(f => ({ ...f, address: item.name, postal_code: item.postcode, city: item.city?.toUpperCase(), latitude: item.latitude, longitude: item.longitude, zone_climatique: zone }));
+  };
 
   // Auto-calc CA Prévisionnel (from nb_led) and CA Réel (from nb_led_reel) — debounced save
   const secteurFromCat = useMemo(() => categories.find(c => c.id === form.category_id)?.name?.toLowerCase() || null, [categories, form.category_id]);
@@ -1194,7 +1245,7 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
       <label className="block text-xs text-slate-400 mb-1">{label}</label>
       {children ? children : type==='select' ? <Select value={form[name]||''} onChange={e=>setForm(f=>({...f,[name]:e.target.value||null}))} disabled={!editing||disabled} className="w-full disabled:opacity-60"><option value="">—</option>{options?.map(o=><option key={o.id} value={o.id}>{o.name}</option>)}</Select>
       : type==='textarea' ? <textarea value={form[name]||''} onChange={e=>setForm(f=>({...f,[name]:e.target.value}))} disabled={!editing} rows={3} className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm disabled:opacity-60 focus:border-emerald-500 outline-none resize-none"/>
-      : <Input type={type} value={form[name]!=null?form[name]:''} onChange={e=>setForm(f=>({...f,[name]:type==='number'?e.target.value:e.target.value}))} disabled={!editing} className="w-full disabled:opacity-60"/>}
+      : <Input type={type} value={form[name]!=null?form[name]:''} onChange={e=>setForm(f=>({...f,[name]:e.target.value}))} disabled={!editing} className="w-full disabled:opacity-60"/>}
     </div>
   );
 
@@ -1316,6 +1367,21 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
                 </div>
               </div>
             ))}
+            {/* Type de projet — instant save */}
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Type de projet</label>
+              <Select value={form.type_projet||''} onChange={async e => {
+                const val = e.target.value || null;
+                const prev = form.type_projet;
+                setForm(f=>({...f,type_projet:val}));
+                lastSavedRef.current = { time: Date.now(), data: { type_projet: val } };
+                try { await onUpdate(prospect.id, { type_projet: val }); refetchFull(); } catch(err) { showAlert(err.message,'error'); setForm(f=>({...f,type_projet:prev})); }
+              }} className="w-full">
+                <option value="">— Aucun —</option>
+                <option value="particulier">Particulier</option>
+                <option value="professionnel">Professionnel</option>
+              </Select>
+            </div>
             {editing && field("Source", "source")}
             {/* PROVENANCE — admin only, instant save */}
             {isAdmin && <div>
@@ -1446,6 +1512,11 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
               </>;
               // ===== PRODUIT ITI =====
               if (pCode === 'iti') return <>
+                {/* Zone climatique badge */}
+                {form.zone_climatique && <div className="flex items-center gap-2 p-2 rounded-lg" style={{ backgroundColor: zoneColors[form.zone_climatique] + '20', borderLeft: `3px solid ${zoneColors[form.zone_climatique]}` }}>
+                  <span className="w-3 h-3 rounded-full" style={{ backgroundColor: zoneColors[form.zone_climatique] }}/>
+                  <span className="text-sm font-semibold" style={{ color: zoneColors[form.zone_climatique] }}>Zone {form.zone_climatique}</span>
+                </div>}
                 {/* Catégorie aide — calcul auto */}
                 <div className="bg-slate-800/50 rounded-xl p-3 space-y-3 border border-slate-700">
                   <p className="text-xs font-semibold text-emerald-400 uppercase tracking-wider">Calcul catégorie aide</p>
@@ -1476,72 +1547,197 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
                   </div>}
                   {form.categorie_aide && !computedCategorie && <Badge color={categorieAideColors[form.categorie_aide]}>Profil {form.categorie_aide} ({categorieAideLabels[form.categorie_aide]})</Badge>}
                 </div>
+                {field("Numéro fiscal", "numero_fiscal")}
                 {field("Reste à charge (€)", "reste_a_charge", "number")}
-                <div className="grid grid-cols-2 gap-3">
-                  {field("Surface sous-sol à isoler (m²)", "surface_sous_sol", "number")}
-                  {field("Surface comble à isoler (m²)", "surface_comble", "number")}
+                {/* Surfaces */}
+                <div className="bg-slate-800/50 rounded-xl p-3 space-y-3 border border-slate-700">
+                  <p className="text-xs font-semibold text-emerald-400 uppercase tracking-wider">Surfaces</p>
+                  {field("Surface bâtiment (m²)", "surface_batiment", "number")}
+                  <div className="grid grid-cols-2 gap-3">
+                    {field("Surface mur intérieur à isoler (m²)", "surface_mur_interieur", "number")}
+                    {field("Surface mur extérieur à isoler (m²)", "surface_mur_exterieur", "number")}
+                  </div>
+                  {field("Surface fenêtre à isoler (m²)", "surface_fenetre", "number")}
+                  <div className="grid grid-cols-2 gap-3">
+                    {field("Surface sous-sol à isoler (m²)", "surface_sous_sol", "number")}
+                    {field("Surface comble à isoler (m²)", "surface_comble", "number")}
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">Surface totale à isoler (m²)</label>
+                    <Input type="number" value={(() => {
+                      const ss = parseFloat(form.surface_sous_sol) || 0;
+                      const sc = parseFloat(form.surface_comble) || 0;
+                      return ss + sc > 0 ? ss + sc : (form.surface_isoler_total || '');
+                    })()} disabled className="w-full disabled:opacity-60 bg-slate-700/30" placeholder="Auto-calculé"/>
+                    {(parseFloat(form.surface_sous_sol) || 0) + (parseFloat(form.surface_comble) || 0) > 0 && <p className="text-[10px] text-emerald-400/70 mt-1">Sous-sol {form.surface_sous_sol || 0} m² + Comble {form.surface_comble || 0} m² = {(parseFloat(form.surface_sous_sol) || 0) + (parseFloat(form.surface_comble) || 0)} m²</p>}
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs text-slate-400 mb-1">Surface totale à isoler (m²)</label>
-                  <Input type="number" value={(() => {
-                    const ss = parseFloat(form.surface_sous_sol) || 0;
-                    const sc = parseFloat(form.surface_comble) || 0;
-                    return ss + sc > 0 ? ss + sc : (form.surface_isoler_total || '');
-                  })()} disabled className="w-full disabled:opacity-60 bg-slate-700/30" placeholder="Auto-calculé"/>
-                  {(parseFloat(form.surface_sous_sol) || 0) + (parseFloat(form.surface_comble) || 0) > 0 && <p className="text-[10px] text-emerald-400/70 mt-1">Sous-sol {form.surface_sous_sol || 0} m² + Comble {form.surface_comble || 0} m² = {(parseFloat(form.surface_sous_sol) || 0) + (parseFloat(form.surface_comble) || 0)} m²</p>}
-                </div>
-                <div>
+                {/* VMC / PAC Split */}
+                <div className="flex items-center gap-6">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" checked={!!form.has_vmc} onChange={async e => {
                       const val = e.target.checked;
                       const prev = form.has_vmc;
-                      setForm(f => ({...f, has_vmc: val}));
-                      lastSavedRef.current = { time: Date.now(), data: { has_vmc: val } };
-                      try { await onUpdate(prospect.id, { has_vmc: val }); refetchFull(); } catch(err) { showAlert(err.message,'error'); setForm(f=>({...f, has_vmc: prev})); }
+                      setForm(f => ({...f, has_vmc: val, ...(val ? { has_pac_split: false } : {})}));
+                      const saveData = { has_vmc: val };
+                      if (val) saveData.has_pac_split = false;
+                      lastSavedRef.current = { time: Date.now(), data: saveData };
+                      try { await onUpdate(prospect.id, saveData); refetchFull(); } catch(err) { showAlert(err.message,'error'); setForm(f=>({...f, has_vmc: prev})); }
                     }} className="rounded border-slate-500"/>
                     <span className="text-sm text-slate-300">VMC</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={!!form.has_pac_split} onChange={async e => {
+                      const val = e.target.checked;
+                      const prev = form.has_pac_split;
+                      setForm(f => ({...f, has_pac_split: val, ...(val ? { has_vmc: false } : {})}));
+                      const saveData = { has_pac_split: val };
+                      if (val) saveData.has_vmc = false;
+                      lastSavedRef.current = { time: Date.now(), data: saveData };
+                      try { await onUpdate(prospect.id, saveData); refetchFull(); } catch(err) { showAlert(err.message,'error'); setForm(f=>({...f, has_pac_split: prev})); }
+                    }} className="rounded border-slate-500"/>
+                    <span className="text-sm text-slate-300">PAC / Split</span>
                   </label>
                 </div>
               </>;
               // ===== PRODUIT PAC =====
-              if (pCode === 'pac') return <>
-                {/* Catégorie aide — calcul auto */}
-                <div className="bg-slate-800/50 rounded-xl p-3 space-y-3 border border-slate-700">
-                  <p className="text-xs font-semibold text-emerald-400 uppercase tracking-wider">Calcul catégorie aide</p>
+              if (pCode === 'pac') {
+                const pacCalc = calcPacCommission(computedCategorie || form.categorie_aide, form.zone_climatique);
+                return <>
+                  {/* Zone climatique badge */}
+                  {form.zone_climatique && <div className="flex items-center gap-2 p-2 rounded-lg" style={{ backgroundColor: zoneColors[form.zone_climatique] + '20', borderLeft: `3px solid ${zoneColors[form.zone_climatique]}` }}>
+                    <span className="w-3 h-3 rounded-full" style={{ backgroundColor: zoneColors[form.zone_climatique] }}/>
+                    <span className="text-sm font-semibold" style={{ color: zoneColors[form.zone_climatique] }}>Zone {form.zone_climatique}</span>
+                  </div>}
+                  {/* Catégorie aide — calcul auto */}
+                  <div className="bg-slate-800/50 rounded-xl p-3 space-y-3 border border-slate-700">
+                    <p className="text-xs font-semibold text-emerald-400 uppercase tracking-wider">Calcul catégorie aide</p>
+                    <div>
+                      <label className="block text-xs text-slate-400 mb-1">Île-de-France ?</label>
+                      <Select value={form.is_ile_de_france ? 'true' : 'false'} onChange={async e => {
+                        const val = e.target.value === 'true';
+                        const prev = form.is_ile_de_france;
+                        setForm(f => ({...f, is_ile_de_france: val}));
+                        const newCat = calcCategorieAide(form.nb_personnes_foyer, form.revenu_fiscal_ref, val);
+                        const saveData = { is_ile_de_france: val };
+                        if (newCat) saveData.categorie_aide = newCat;
+                        // Auto-compute PAC commission with new IDF value
+                        if (newCat && form.zone_climatique) {
+                          const pc = calcPacCommission(newCat, form.zone_climatique);
+                          if (pc) { saveData.reste_a_charge = pc.reste_a_charge; saveData.commission_pac = pc.commission; }
+                        }
+                        lastSavedRef.current = { time: Date.now(), data: saveData };
+                        try { await onUpdate(prospect.id, saveData); refetchFull(); } catch(err) { showAlert(err.message,'error'); setForm(f=>({...f,is_ile_de_france:prev})); }
+                      }} className="w-full">
+                        <option value="false">Hors Île-de-France</option>
+                        <option value="true">Île-de-France</option>
+                      </Select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      {field("Nb personnes dans le foyer", "nb_personnes_foyer", "number")}
+                      {field("Revenu fiscal de référence (€)", "revenu_fiscal_ref", "number")}
+                    </div>
+                    {computedCategorie && <div className="flex items-center gap-2 mt-2 p-2 rounded-lg" style={{ backgroundColor: categorieAideColors[computedCategorie] + '20', borderLeft: `3px solid ${categorieAideColors[computedCategorie]}` }}>
+                      <span className="w-3 h-3 rounded-full" style={{ backgroundColor: categorieAideColors[computedCategorie] }}/>
+                      <span className="text-sm font-semibold" style={{ color: categorieAideColors[computedCategorie] }}>Profil {computedCategorie}</span>
+                      <span className="text-xs text-slate-400">({categorieAideLabels[computedCategorie]})</span>
+                    </div>}
+                    {form.categorie_aide && !computedCategorie && <Badge color={categorieAideColors[form.categorie_aide]}>Profil {form.categorie_aide} ({categorieAideLabels[form.categorie_aide]})</Badge>}
+                  </div>
+                  {field("Numéro fiscal", "numero_fiscal")}
+                  {/* Reste à charge — visible par tous */}
+                  {pacCalc && <div className="bg-slate-800/50 rounded-xl p-3 space-y-2 border border-slate-700">
+                    <div><label className="block text-xs text-slate-400 mb-1">Reste à charge (€)</label><div className="text-lg font-bold text-white">{pacCalc.reste_a_charge.toLocaleString('fr-FR')} €</div></div>
+                    <p className="text-[10px] text-slate-500">Profil {computedCategorie || form.categorie_aide} + Zone {form.zone_climatique}</p>
+                  </div>}
+                  {/* Commission — admin uniquement */}
+                  {isAdmin && pacCalc && <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-3 space-y-2">
+                    <p className="text-xs font-semibold text-emerald-400 uppercase tracking-wider flex items-center gap-1"><Crown className="w-3 h-3"/> Commission PAC</p>
+                    <div className="text-lg font-bold text-emerald-400">{pacCalc.commission.toLocaleString('fr-FR')} €</div>
+                  </div>}
+                  {!pacCalc && <>
+                    {field("Reste à charge (€)", "reste_a_charge", "number")}
+                    {isAdmin && field("Commission (€)", "commission_pac", "number")}
+                  </>}
+                  {/* Puissance PAC */}
+                  {field("Puissance PAC (kW)", "puissance_pac", "number")}
+                  {/* Ballon */}
                   <div>
-                    <label className="block text-xs text-slate-400 mb-1">Île-de-France ?</label>
-                    <Select value={form.is_ile_de_france ? 'true' : 'false'} onChange={async e => {
-                      const val = e.target.value === 'true';
-                      const prev = form.is_ile_de_france;
-                      setForm(f => ({...f, is_ile_de_france: val}));
-                      const newCat = calcCategorieAide(form.nb_personnes_foyer, form.revenu_fiscal_ref, val);
-                      const saveData = { is_ile_de_france: val };
-                      if (newCat) saveData.categorie_aide = newCat;
-                      lastSavedRef.current = { time: Date.now(), data: saveData };
-                      try { await onUpdate(prospect.id, saveData); refetchFull(); } catch(err) { showAlert(err.message,'error'); setForm(f=>({...f,is_ile_de_france:prev})); }
+                    <label className="block text-xs text-slate-400 mb-1">Type de ballon</label>
+                    <Select value={form.ballon_type||''} onChange={async e => {
+                      const val = e.target.value || null;
+                      const prev = form.ballon_type;
+                      setForm(f=>({...f,ballon_type:val}));
+                      lastSavedRef.current = { time: Date.now(), data: { ballon_type: val } };
+                      try { await onUpdate(prospect.id, { ballon_type: val }); refetchFull(); } catch(err) { showAlert(err.message,'error'); setForm(f=>({...f,ballon_type:prev})); }
                     }} className="w-full">
-                      <option value="false">Hors Île-de-France</option>
-                      <option value="true">Île-de-France</option>
+                      <option value="">— Aucun —</option>
+                      <option value="electrique">Ballon électrique</option>
+                      <option value="thermodynamique">Ballon thermodynamique</option>
                     </Select>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
-                    {field("Nb personnes dans le foyer", "nb_personnes_foyer", "number")}
-                    {field("Revenu fiscal de référence (€)", "revenu_fiscal_ref", "number")}
+                    {field("Surface habitable (m²)", "surface_habitable", "number")}
+                    {field("Surface à chauffer (m²)", "surface_chauffer", "number")}
                   </div>
-                  {computedCategorie && <div className="flex items-center gap-2 mt-2 p-2 rounded-lg" style={{ backgroundColor: categorieAideColors[computedCategorie] + '20', borderLeft: `3px solid ${categorieAideColors[computedCategorie]}` }}>
-                    <span className="w-3 h-3 rounded-full" style={{ backgroundColor: categorieAideColors[computedCategorie] }}/>
-                    <span className="text-sm font-semibold" style={{ color: categorieAideColors[computedCategorie] }}>Profil {computedCategorie}</span>
-                    <span className="text-xs text-slate-400">({categorieAideLabels[computedCategorie]})</span>
-                  </div>}
-                  {form.categorie_aide && !computedCategorie && <Badge color={categorieAideColors[form.categorie_aide]}>Profil {form.categorie_aide} ({categorieAideLabels[form.categorie_aide]})</Badge>}
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  {field("Surface habitable (m²)", "surface_habitable", "number")}
-                  {field("Surface à chauffer (m²)", "surface_chauffer", "number")}
-                </div>
-              </>;
+                </>;
+              }
               return null;
             })()}
+            {/* CHAMPS COMMUNS À TOUS LES PRODUITS */}
+            {/* Type logement */}
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Type de logement</label>
+              <Select value={form.type_logement||''} onChange={async e => {
+                const val = e.target.value || null;
+                const prev = form.type_logement;
+                setForm(f=>({...f,type_logement:val}));
+                lastSavedRef.current = { time: Date.now(), data: { type_logement: val } };
+                try { await onUpdate(prospect.id, { type_logement: val }); refetchFull(); } catch(err) { showAlert(err.message,'error'); setForm(f=>({...f,type_logement:prev})); }
+              }} className="w-full">
+                <option value="">— Aucun —</option>
+                <option value="maison">Maison</option>
+                <option value="appartement">Appartement</option>
+              </Select>
+            </div>
+            {/* Type de chauffage existant */}
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Type de chauffage existant</label>
+              <Select value={form.type_chauffage||''} onChange={async e => {
+                const val = e.target.value || null;
+                const prev = form.type_chauffage;
+                setForm(f=>({...f,type_chauffage:val}));
+                lastSavedRef.current = { time: Date.now(), data: { type_chauffage: val } };
+                try { await onUpdate(prospect.id, { type_chauffage: val }); refetchFull(); } catch(err) { showAlert(err.message,'error'); setForm(f=>({...f,type_chauffage:prev})); }
+              }} className="w-full">
+                <option value="">— Aucun —</option>
+                {typeChauffageOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </Select>
+            </div>
+            {/* DATE D'AUDIT — instant save */}
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Date d'audit</label>
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-amber-400 flex-shrink-0"/>
+                <Input type="datetime-local" value={(() => {
+                  if (!form.date_audit) return '';
+                  const d = new Date(form.date_audit);
+                  const pad = n => String(n).padStart(2,'0');
+                  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+                })()} onChange={async e => {
+                  const val = e.target.value ? new Date(e.target.value).toISOString() : null;
+                  const prev = form.date_audit;
+                  setForm(f=>({...f,date_audit:val}));
+                  try { await onUpdate(prospect.id, { date_audit: val }); refetchFull(); } catch(err) { showAlert(err.message,'error'); setForm(f=>({...f,date_audit:prev})); }
+                }} className="flex-1"/>
+                {form.date_audit && <button onClick={async () => {
+                  const prev = form.date_audit;
+                  setForm(f=>({...f,date_audit:null}));
+                  try { await onUpdate(prospect.id, { date_audit: null }); refetchFull(); } catch(err) { showAlert(err.message,'error'); setForm(f=>({...f,date_audit:prev})); }
+                }} className="p-1.5 hover:bg-red-500/20 rounded text-red-400" title="Supprimer la date"><X className="w-4 h-4"/></button>}
+              </div>
+              {form.date_audit && <p className="text-xs text-amber-400 mt-1 flex items-center gap-1"><Calendar className="w-3 h-3"/> Audit prévu le {formatDateTime(form.date_audit)}</p>}
+            </div>
             {/* DATE DE POSE — instant save (commun à tous les produits) */}
             <div>
               <label className="block text-xs text-slate-400 mb-1">Date de pose prévue</label>
@@ -2803,10 +2999,10 @@ const ProspectModal = memo(({ open, onClose, onSubmit, categories, statuses, pro
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
   const { lookup, loading: siretLd } = useSiretLookup();
-  useEffect(() => { if(open) { setErr(''); setSaving(false); setPhoneWarning(null); setForm({ first_name:'', last_name:'', company_name:'', phone:'', email:'', city:'', siret:'', address:'', postal_code:'', category_id:categories[0]?.id||'', status_id:statuses[0]?.id||'', product_id:products[0]?.id||'', installer_id:'', source_id:'', transmis_installateur: false, date_pose: null, type_led:'', mode_pose:'', nb_led:'', nb_led_reel:'', nb_personnes_foyer:'', revenu_fiscal_ref:'', is_ile_de_france:false, categorie_aide:'', reste_a_charge:'', surface_sous_sol:'', surface_comble:'', surface_isoler_total:'', has_vmc:false, surface_habitable:'', surface_chauffer:'' }); } }, [open, categories, statuses, products]);
+  useEffect(() => { if(open) { setErr(''); setSaving(false); setPhoneWarning(null); setForm({ first_name:'', last_name:'', company_name:'', phone:'', email:'', city:'', siret:'', address:'', postal_code:'', category_id:categories[0]?.id||'', status_id:statuses[0]?.id||'', product_id:products[0]?.id||'', installer_id:'', source_id:'', transmis_installateur: false, date_pose: null, date_audit: null, type_led:'', mode_pose:'', nb_led:'', nb_led_reel:'', nb_personnes_foyer:'', revenu_fiscal_ref:'', is_ile_de_france:false, categorie_aide:'', reste_a_charge:'', surface_sous_sol:'', surface_comble:'', surface_isoler_total:'', has_vmc:false, has_pac_split:false, surface_habitable:'', surface_chauffer:'', zone_climatique:'', commission_pac:'', ballon_type:'', type_chauffage:'', numero_fiscal:'', type_logement:'', type_projet:'', surface_batiment:'', surface_mur_interieur:'', surface_mur_exterieur:'', surface_fenetre:'' }); } }, [open, categories, statuses, products]);
 
   const handleSiret = async () => { try { const r=await lookup(form.siret); setForm(f=>({...f,company_name:r.company_name||f.company_name,address:r.address||f.address,postal_code:r.postal_code||f.postal_code,city:r.city||f.city,latitude:r.latitude,longitude:r.longitude})); } catch(e) { setErr(e.message); } };
-  const handleAddr = item => { setForm(f=>({...f,address:item.name,postal_code:item.postcode,city:item.city?.toUpperCase(),latitude:item.latitude,longitude:item.longitude})); };
+  const handleAddr = item => { const zone = getZoneClimatique(item.postcode); setForm(f=>({...f,address:item.name,postal_code:item.postcode,city:item.city?.toUpperCase(),latitude:item.latitude,longitude:item.longitude,zone_climatique:zone})); };
   const [phoneWarning, setPhoneWarning] = useState(null);
   const checkPhoneDuplicate = useCallback((phone) => {
     if (!phone || phone.trim().length < 4) { setPhoneWarning(null); return false; }
@@ -2825,12 +3021,18 @@ const ProspectModal = memo(({ open, onClose, onSubmit, categories, statuses, pro
       if (match) { setErr(`⚠️ Attention : prospect déjà existant avec ce numéro — ${match.first_name || ''} ${match.last_name || ''} (${match.company_name || 'Sans entreprise'}). Seul un admin peut dupliquer une fiche.`); setSaving(false); return; }
     }
     const submitData = { ...form };
+    // Auto-compute zone climatique
+    if (submitData.postal_code) { const z = getZoneClimatique(submitData.postal_code); if (z) submitData.zone_climatique = z; }
     // Auto-compute categorie_aide et surface_isoler_total
     const cat = calcCategorieAide(submitData.nb_personnes_foyer, submitData.revenu_fiscal_ref, submitData.is_ile_de_france);
     if (cat) submitData.categorie_aide = cat;
     const ss = parseFloat(submitData.surface_sous_sol) || 0;
     const sc = parseFloat(submitData.surface_comble) || 0;
     if (ss + sc > 0) submitData.surface_isoler_total = ss + sc;
+    // Auto-compute PAC commission (only for PAC products)
+    const selProdForCalc = products.find(p => p.id === submitData.product_id);
+    const pCodeForCalc = selProdForCalc ? getProductCode({ product: selProdForCalc }, products) : null;
+    if (pCodeForCalc === 'pac' && cat && submitData.zone_climatique) { const pc = calcPacCommission(cat, submitData.zone_climatique); if (pc) { submitData.reste_a_charge = pc.reste_a_charge; submitData.commission_pac = pc.commission; } }
     try { await onSubmit(submitData); }
     catch(e) { setErr(e.message||'Erreur lors de la création'); import.meta.env.DEV&&console.warn('ProspectModal submit error:', e); }
     finally { setSaving(false); }
@@ -2845,7 +3047,8 @@ const ProspectModal = memo(({ open, onClose, onSubmit, categories, statuses, pro
       <div className="grid grid-cols-2 gap-3"><Input placeholder="Téléphone" value={form.phone||''} onChange={e=>{setForm(f=>({...f,phone:e.target.value})); checkPhoneDuplicate(e.target.value);}} className={`py-3 ${phoneWarning ? 'border-amber-500 ring-1 ring-amber-500/50' : ''}`}/><Input placeholder="Email" type="email" value={form.email||''} onChange={e=>setForm(f=>({...f,email:e.target.value}))} className="py-3"/></div>
       {phoneWarning && <div className="p-3 bg-amber-500/20 border border-amber-500/50 rounded-lg text-amber-400 text-sm flex items-center gap-2"><AlertCircle className="w-4 h-4 flex-shrink-0"/>⚠️ Ce numéro existe déjà : <strong>{phoneWarning.first_name||''} {phoneWarning.last_name||''}</strong> ({phoneWarning.company_name||'Sans entreprise'}). La création sera bloquée — seul un admin peut dupliquer une fiche.</div>}
       <AddressAutocomplete value={form.address||''} onChange={v=>setForm(f=>({...f,address:v}))} onSelect={handleAddr}/>
-      <div className="grid grid-cols-2 gap-3"><Input placeholder="Code postal" value={form.postal_code||''} onChange={e=>setForm(f=>({...f,postal_code:e.target.value}))} className="py-3"/><Input placeholder="Ville" value={form.city||''} onChange={e=>setForm(f=>({...f,city:e.target.value}))} className="py-3"/></div>
+      <div className="grid grid-cols-2 gap-3"><Input placeholder="Code postal" value={form.postal_code||''} onChange={e=>{const v=e.target.value; const z=getZoneClimatique(v); setForm(f=>({...f,postal_code:v,zone_climatique:z}));}} className="py-3"/><Input placeholder="Ville" value={form.city||''} onChange={e=>setForm(f=>({...f,city:e.target.value}))} className="py-3"/></div>
+      {form.zone_climatique && <div className="flex items-center gap-2 p-2 rounded-lg" style={{ backgroundColor: zoneColors[form.zone_climatique] + '20' }}><span className="w-3 h-3 rounded-full" style={{ backgroundColor: zoneColors[form.zone_climatique] }}/><span className="text-sm font-semibold" style={{ color: zoneColors[form.zone_climatique] }}>Zone {form.zone_climatique}</span></div>}
       <div className="grid grid-cols-2 gap-3">
         <Select value={form.product_id||''} onChange={e=>setForm(f=>({...f,product_id:e.target.value}))} className="py-3"><option value="">Produit</option>{products.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</Select>
         <Select value={form.installer_id||''} onChange={e=>setForm(f=>({...f,installer_id:e.target.value}))} className="py-3"><option value="">Installateur</option>{installers.map(i=><option key={i.id} value={i.id}>{i.name}</option>)}</Select>
@@ -2873,43 +3076,60 @@ const ProspectModal = memo(({ open, onClose, onSubmit, categories, statuses, pro
         if (pCode === 'iti') return <>
           <div className="bg-slate-700/30 rounded-xl p-3 space-y-3">
             <p className="text-xs font-semibold text-emerald-400 uppercase tracking-wider">Détails ITI</p>
+            {form.zone_climatique && <div className="flex items-center gap-2 p-2 rounded-lg" style={{ backgroundColor: zoneColors[form.zone_climatique] + '20' }}><span className="w-3 h-3 rounded-full" style={{ backgroundColor: zoneColors[form.zone_climatique] }}/><span className="text-sm font-semibold" style={{ color: zoneColors[form.zone_climatique] }}>Zone {form.zone_climatique}</span></div>}
             <Select value={form.is_ile_de_france ? 'true' : 'false'} onChange={e=>setForm(f=>({...f,is_ile_de_france:e.target.value==='true'}))} className="py-3"><option value="false">Hors Île-de-France</option><option value="true">Île-de-France</option></Select>
             <div className="grid grid-cols-2 gap-3">
               <Input placeholder="Nb personnes foyer" type="number" value={form.nb_personnes_foyer||''} onChange={e=>setForm(f=>({...f,nb_personnes_foyer:e.target.value}))} className="py-3"/>
               <Input placeholder="Revenu fiscal réf. (€)" type="number" value={form.revenu_fiscal_ref||''} onChange={e=>setForm(f=>({...f,revenu_fiscal_ref:e.target.value}))} className="py-3"/>
             </div>
-            {computedCat && <div className="flex items-center gap-2 p-2 rounded-lg" style={{ backgroundColor: categorieAideColors[computedCat] + '20' }}>
-              <span className="w-3 h-3 rounded-full" style={{ backgroundColor: categorieAideColors[computedCat] }}/>
-              <span className="text-sm font-semibold" style={{ color: categorieAideColors[computedCat] }}>Profil {computedCat} ({categorieAideLabels[computedCat]})</span>
-            </div>}
+            {computedCat && <div className="flex items-center gap-2 p-2 rounded-lg" style={{ backgroundColor: categorieAideColors[computedCat] + '20' }}><span className="w-3 h-3 rounded-full" style={{ backgroundColor: categorieAideColors[computedCat] }}/><span className="text-sm font-semibold" style={{ color: categorieAideColors[computedCat] }}>Profil {computedCat} ({categorieAideLabels[computedCat]})</span></div>}
+            <Input placeholder="Numéro fiscal" value={form.numero_fiscal||''} onChange={e=>setForm(f=>({...f,numero_fiscal:e.target.value}))} className="py-3"/>
             <Input placeholder="Reste à charge (€)" type="number" value={form.reste_a_charge||''} onChange={e=>setForm(f=>({...f,reste_a_charge:e.target.value}))} className="py-3"/>
+            <Input placeholder="Surface bâtiment (m²)" type="number" value={form.surface_batiment||''} onChange={e=>setForm(f=>({...f,surface_batiment:e.target.value}))} className="py-3"/>
+            <div className="grid grid-cols-2 gap-3">
+              <Input placeholder="Surface mur intérieur (m²)" type="number" value={form.surface_mur_interieur||''} onChange={e=>setForm(f=>({...f,surface_mur_interieur:e.target.value}))} className="py-3"/>
+              <Input placeholder="Surface mur extérieur (m²)" type="number" value={form.surface_mur_exterieur||''} onChange={e=>setForm(f=>({...f,surface_mur_exterieur:e.target.value}))} className="py-3"/>
+            </div>
+            <Input placeholder="Surface fenêtre (m²)" type="number" value={form.surface_fenetre||''} onChange={e=>setForm(f=>({...f,surface_fenetre:e.target.value}))} className="py-3"/>
             <div className="grid grid-cols-2 gap-3">
               <Input placeholder="Surface sous-sol (m²)" type="number" value={form.surface_sous_sol||''} onChange={e=>setForm(f=>({...f,surface_sous_sol:e.target.value}))} className="py-3"/>
               <Input placeholder="Surface comble (m²)" type="number" value={form.surface_comble||''} onChange={e=>setForm(f=>({...f,surface_comble:e.target.value}))} className="py-3"/>
             </div>
-            <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={!!form.has_vmc} onChange={e=>setForm(f=>({...f,has_vmc:e.target.checked}))} className="rounded border-slate-500"/><span className="text-sm text-slate-300">VMC</span></label>
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={!!form.has_vmc} onChange={e=>setForm(f=>({...f,has_vmc:e.target.checked,has_pac_split:e.target.checked?false:f.has_pac_split}))} className="rounded border-slate-500"/><span className="text-sm text-slate-300">VMC</span></label>
+              <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={!!form.has_pac_split} onChange={e=>setForm(f=>({...f,has_pac_split:e.target.checked,has_vmc:e.target.checked?false:f.has_vmc}))} className="rounded border-slate-500"/><span className="text-sm text-slate-300">PAC / Split</span></label>
+            </div>
           </div>
         </>;
-        if (pCode === 'pac') return <>
+        if (pCode === 'pac') { const pacCalcModal = calcPacCommission(computedCat, form.zone_climatique); return <>
           <div className="bg-slate-700/30 rounded-xl p-3 space-y-3">
             <p className="text-xs font-semibold text-emerald-400 uppercase tracking-wider">Détails PAC</p>
+            {form.zone_climatique && <div className="flex items-center gap-2 p-2 rounded-lg" style={{ backgroundColor: zoneColors[form.zone_climatique] + '20' }}><span className="w-3 h-3 rounded-full" style={{ backgroundColor: zoneColors[form.zone_climatique] }}/><span className="text-sm font-semibold" style={{ color: zoneColors[form.zone_climatique] }}>Zone {form.zone_climatique}</span></div>}
             <Select value={form.is_ile_de_france ? 'true' : 'false'} onChange={e=>setForm(f=>({...f,is_ile_de_france:e.target.value==='true'}))} className="py-3"><option value="false">Hors Île-de-France</option><option value="true">Île-de-France</option></Select>
             <div className="grid grid-cols-2 gap-3">
               <Input placeholder="Nb personnes foyer" type="number" value={form.nb_personnes_foyer||''} onChange={e=>setForm(f=>({...f,nb_personnes_foyer:e.target.value}))} className="py-3"/>
               <Input placeholder="Revenu fiscal réf. (€)" type="number" value={form.revenu_fiscal_ref||''} onChange={e=>setForm(f=>({...f,revenu_fiscal_ref:e.target.value}))} className="py-3"/>
             </div>
-            {computedCat && <div className="flex items-center gap-2 p-2 rounded-lg" style={{ backgroundColor: categorieAideColors[computedCat] + '20' }}>
-              <span className="w-3 h-3 rounded-full" style={{ backgroundColor: categorieAideColors[computedCat] }}/>
-              <span className="text-sm font-semibold" style={{ color: categorieAideColors[computedCat] }}>Profil {computedCat} ({categorieAideLabels[computedCat]})</span>
-            </div>}
+            {computedCat && <div className="flex items-center gap-2 p-2 rounded-lg" style={{ backgroundColor: categorieAideColors[computedCat] + '20' }}><span className="w-3 h-3 rounded-full" style={{ backgroundColor: categorieAideColors[computedCat] }}/><span className="text-sm font-semibold" style={{ color: categorieAideColors[computedCat] }}>Profil {computedCat} ({categorieAideLabels[computedCat]})</span></div>}
+            <Input placeholder="Numéro fiscal" value={form.numero_fiscal||''} onChange={e=>setForm(f=>({...f,numero_fiscal:e.target.value}))} className="py-3"/>
+            {pacCalcModal && <div className="bg-slate-600/20 border border-slate-600/30 rounded-lg p-2"><div><span className="text-[10px] text-slate-400">Reste à charge</span><div className="text-sm font-bold text-white">{pacCalcModal.reste_a_charge} €</div></div></div>}
+            {isAdmin && pacCalcModal && <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-2"><div><span className="text-[10px] text-slate-400">Commission</span><div className="text-sm font-bold text-emerald-400">{pacCalcModal.commission} €</div></div></div>}
+            <Input placeholder="Puissance PAC (kW)" type="number" value={form.puissance_pac||''} onChange={e=>setForm(f=>({...f,puissance_pac:e.target.value}))} className="py-3"/>
+            <Select value={form.ballon_type||''} onChange={e=>setForm(f=>({...f,ballon_type:e.target.value}))} className="py-3"><option value="">Type de ballon</option><option value="electrique">Ballon électrique</option><option value="thermodynamique">Ballon thermodynamique</option></Select>
             <div className="grid grid-cols-2 gap-3">
               <Input placeholder="Surface habitable (m²)" type="number" value={form.surface_habitable||''} onChange={e=>setForm(f=>({...f,surface_habitable:e.target.value}))} className="py-3"/>
               <Input placeholder="Surface à chauffer (m²)" type="number" value={form.surface_chauffer||''} onChange={e=>setForm(f=>({...f,surface_chauffer:e.target.value}))} className="py-3"/>
             </div>
           </div>
-        </>;
+        </>; }
         return null;
       })()}
+      {/* Champs communs */}
+      <div className="grid grid-cols-2 gap-3">
+        <Select value={form.type_logement||''} onChange={e=>setForm(f=>({...f,type_logement:e.target.value}))} className="py-3"><option value="">Type de logement</option><option value="maison">Maison</option><option value="appartement">Appartement</option></Select>
+        <Select value={form.type_projet||''} onChange={e=>setForm(f=>({...f,type_projet:e.target.value}))} className="py-3"><option value="">Type de projet</option><option value="particulier">Particulier</option><option value="professionnel">Professionnel</option></Select>
+      </div>
+      <Select value={form.type_chauffage||''} onChange={e=>setForm(f=>({...f,type_chauffage:e.target.value}))} className="py-3"><option value="">Type chauffage existant</option>{typeChauffageOptions.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</Select>
       <Btn variant="primary" size="lg" className="w-full justify-center" type="submit" disabled={saving}>{saving?<><Loader2 className="w-4 h-4 animate-spin"/> Création...</>:'Créer le prospect'}</Btn>
     </form>
   </Modal>;
