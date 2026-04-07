@@ -2620,10 +2620,10 @@ const StatsPage = memo(({ onBack, statuses, products, categories, counts, isAdmi
 // PLANNING PAGE (Date de pose / Agenda)
 // =====================================================
 const PlanningPage = memo(({ onBack, onOpenProspect, reminders, isAdmin }) => {
-  const { events, loading } = usePlanning();
+  const { events, audits, loading } = usePlanning();
   const [selectedMonth, setSelectedMonth] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; });
   const [viewMode, setViewMode] = useState('calendar'); // 'calendar' | 'list'
-  const [planningTab, setPlanningTab] = useState('poses'); // 'poses' | 'rappels'
+  const [planningTab, setPlanningTab] = useState('poses'); // 'poses' | 'rappels' | 'audits'
 
   // Group events by date
   const eventsByDate = useMemo(() => {
@@ -2638,6 +2638,19 @@ const PlanningPage = memo(({ onBack, onOpenProspect, reminders, isAdmin }) => {
     return map;
   }, [events]);
 
+  // Group audits by date
+  const auditsByDate = useMemo(() => {
+    const map = {};
+    audits.forEach(e => {
+      if (!e.date_audit) return;
+      const d = new Date(e.date_audit);
+      const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      if (!map[key]) map[key] = [];
+      map[key].push(e);
+    });
+    return map;
+  }, [audits]);
+
   // Group reminders by date
   const remindersByDate = useMemo(() => {
     const map = {};
@@ -2651,7 +2664,7 @@ const PlanningPage = memo(({ onBack, onOpenProspect, reminders, isAdmin }) => {
     return map;
   }, [reminders]);
 
-  const activeEventsByDate = planningTab === 'poses' ? eventsByDate : remindersByDate;
+  const activeEventsByDate = planningTab === 'poses' ? eventsByDate : planningTab === 'audits' ? auditsByDate : remindersByDate;
 
   // Calendar data
   const calendarData = useMemo(() => {
@@ -2699,14 +2712,15 @@ const PlanningPage = memo(({ onBack, onOpenProspect, reminders, isAdmin }) => {
         <button onClick={onBack} className="p-2 hover:bg-slate-700 rounded-xl text-slate-400"><ChevronLeft className="w-5 h-5"/></button>
         <div>
           <h1 className="text-xl font-bold text-white flex items-center gap-2">
-            {planningTab==='poses' ? <><CalendarDays className="w-5 h-5 text-emerald-400"/> Planning des poses</> : <><Bell className="w-5 h-5 text-amber-400"/> Calendrier des rappels</>}
+            {planningTab==='poses' ? <><CalendarDays className="w-5 h-5 text-emerald-400"/> Planning des poses</> : planningTab==='audits' ? <><Calendar className="w-5 h-5 text-blue-400"/> Planning des audits</> : <><Bell className="w-5 h-5 text-amber-400"/> Calendrier des rappels</>}
           </h1>
-          <p className="text-xs text-slate-400">{planningTab==='poses' ? `${upcomingEvents.length} pose(s) à venir • ${events.length} total` : `${pendingReminders.length} rappel(s) en attente • ${overdueReminders.length} en retard`}</p>
+          <p className="text-xs text-slate-400">{planningTab==='poses' ? `${upcomingEvents.length} pose(s) à venir • ${events.length} total` : planningTab==='audits' ? `${audits.filter(a=>a.date_audit&&new Date(a.date_audit)>=todayStart).length} audit(s) à venir • ${audits.length} total` : `${pendingReminders.length} rappel(s) en attente • ${overdueReminders.length} en retard`}</p>
         </div>
       </div>
       <div className="flex items-center gap-3">
         <div className="flex bg-slate-700 rounded-lg p-0.5">
           <button onClick={()=>setPlanningTab('poses')} className={cn("px-3 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center gap-1.5", planningTab==='poses'?'bg-emerald-500 text-white':'text-slate-400 hover:text-white')}><CalendarDays className="w-3.5 h-3.5"/>Poses</button>
+          <button onClick={()=>setPlanningTab('audits')} className={cn("px-3 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center gap-1.5", planningTab==='audits'?'bg-blue-500 text-white':'text-slate-400 hover:text-white')}><Calendar className="w-3.5 h-3.5"/>Audits</button>
           <button onClick={()=>setPlanningTab('rappels')} className={cn("px-3 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center gap-1.5", planningTab==='rappels'?'bg-amber-500 text-white':'text-slate-400 hover:text-white')}><Bell className="w-3.5 h-3.5"/>Rappels{overdueReminders.length>0&&<span className="ml-1 px-1.5 py-0.5 bg-red-500 text-white text-[10px] rounded-full font-bold">{overdueReminders.length}</span>}</button>
         </div>
         <div className="flex bg-slate-700 rounded-lg p-0.5">
@@ -2737,7 +2751,7 @@ const PlanningPage = memo(({ onBack, onOpenProspect, reminders, isAdmin }) => {
           <div className="grid grid-cols-7 gap-1">
             {calendarData.map(({ date, key, events: dayEvents, isCurrentMonth }) => (
               <div key={key} className={cn("min-h-[90px] rounded-lg p-1.5 border transition-colors",
-                key === today ? (planningTab==='poses'?"border-emerald-500 bg-emerald-500/10":"border-amber-500 bg-amber-500/10") : "border-slate-700/50",
+                key === today ? (planningTab==='poses'?"border-emerald-500 bg-emerald-500/10":planningTab==='audits'?"border-blue-500 bg-blue-500/10":"border-amber-500 bg-amber-500/10") : "border-slate-700/50",
                 isCurrentMonth ? "bg-slate-800/50" : "bg-slate-800/20 opacity-50")}>
                 <div className="text-xs text-slate-400 mb-1">{date.getDate()}</div>
                 <div className="space-y-0.5">
@@ -2745,11 +2759,15 @@ const PlanningPage = memo(({ onBack, onOpenProspect, reminders, isAdmin }) => {
                     <button key={ev.id} onClick={() => onOpenProspect(ev)} className="w-full text-left px-1.5 py-0.5 rounded text-[10px] font-medium truncate hover:opacity-80 transition-opacity" style={{ backgroundColor: (ev.status?.color || '#6B7280') + '30', color: ev.status?.color || '#6B7280' }}>
                       {ev.company_name || `${ev.first_name||''} ${ev.last_name||''}`}
                     </button>
+                  )) : planningTab==='audits' ? dayEvents.slice(0, 3).map(ev => (
+                    <button key={ev.id} onClick={() => onOpenProspect(ev)} className="w-full text-left px-1.5 py-0.5 rounded text-[10px] font-medium truncate hover:opacity-80 transition-opacity bg-blue-500/20 text-blue-400">
+                      {ev.company_name || `${ev.first_name||''} ${ev.last_name||''}`}
+                    </button>
                   )) : dayEvents.slice(0, 3).map(r => {
                     const isOverdue = new Date(r.due_date) < new Date();
                     const name = r.prospect?.company_name || `${r.prospect?.first_name||''} ${r.prospect?.last_name||''}`.trim() || 'Rappel';
                     return <button key={r.id} onClick={() => r.prospect_id && onOpenProspect({ id: r.prospect_id, company_name: r.prospect?.company_name, first_name: r.prospect?.first_name, last_name: r.prospect?.last_name })} className={cn("w-full text-left px-1.5 py-0.5 rounded text-[10px] font-medium truncate hover:opacity-80 transition-opacity", isOverdue?"bg-red-500/20 text-red-400":"bg-amber-500/20 text-amber-400")}>
-                      🔔 {name}
+                      {name}
                     </button>;
                   })}
                   {dayEvents.length > 3 && <div className="text-[10px] text-slate-500 pl-1">+{dayEvents.length - 3} autres</div>}
@@ -2757,6 +2775,61 @@ const PlanningPage = memo(({ onBack, onOpenProspect, reminders, isAdmin }) => {
               </div>
             ))}
           </div>
+        </div>
+      ) : planningTab === 'audits' ? (
+        /* AUDITS LIST VIEW */
+        <div className="max-w-4xl mx-auto space-y-6">
+          {(() => {
+            const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+            const upcomingAudits = audits.filter(a => a.date_audit && new Date(a.date_audit) >= todayStart).sort((a,b) => new Date(a.date_audit) - new Date(b.date_audit));
+            const pastAudits = audits.filter(a => a.date_audit && new Date(a.date_audit) < todayStart).sort((a,b) => new Date(b.date_audit) - new Date(a.date_audit));
+            return <>
+              {upcomingAudits.length > 0 && <div>
+                <h3 className="text-sm font-semibold text-blue-400 uppercase mb-3 flex items-center gap-2"><Calendar className="w-4 h-4"/> Audits à venir ({upcomingAudits.length})</h3>
+                <div className="space-y-2">{upcomingAudits.map(ev => (
+                  <div key={ev.id} onClick={() => onOpenProspect(ev)} className="flex items-center gap-4 p-4 bg-slate-800 rounded-xl border border-slate-700 hover:border-blue-500/50 cursor-pointer transition-colors">
+                    <div className="w-14 h-14 bg-blue-500/20 rounded-xl flex flex-col items-center justify-center flex-shrink-0">
+                      <span className="text-blue-400 text-lg font-bold">{new Date(ev.date_audit).getDate()}</span>
+                      <span className="text-blue-400 text-[10px] uppercase">{new Date(ev.date_audit).toLocaleDateString('fr-FR', { month: 'short' })}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white font-medium text-sm">{ev.company_name || `${ev.first_name||''} ${ev.last_name||''}`}</p>
+                      <p className="text-xs text-slate-400 flex items-center gap-2 mt-0.5">
+                        {ev.city && <span className="flex items-center gap-1"><MapPin className="w-3 h-3"/>{ev.city}</span>}
+                        {ev.phone && <span className="flex items-center gap-1"><Phone className="w-3 h-3"/>{ev.phone}</span>}
+                        <span className="flex items-center gap-1"><Clock className="w-3 h-3"/>{new Date(ev.date_audit).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                      {ev.status && <Badge color={ev.status.color} small>{ev.status.name}</Badge>}
+                      {ev.installer && <span className="text-xs text-slate-400">{ev.installer.name}</span>}
+                    </div>
+                  </div>
+                ))}</div>
+              </div>}
+              {pastAudits.length > 0 && <div>
+                <h3 className="text-sm font-semibold text-slate-500 uppercase mb-3 flex items-center gap-2"><History className="w-4 h-4"/> Audits passés ({pastAudits.length})</h3>
+                <div className="space-y-2">{pastAudits.slice(0, 20).map(ev => (
+                  <div key={ev.id} onClick={() => onOpenProspect(ev)} className="flex items-center gap-4 p-3 bg-slate-800/50 rounded-xl border border-slate-700/50 hover:border-slate-600 cursor-pointer transition-colors opacity-70">
+                    <div className="w-12 h-12 bg-slate-700 rounded-xl flex flex-col items-center justify-center flex-shrink-0">
+                      <span className="text-slate-400 text-sm font-bold">{new Date(ev.date_audit).getDate()}</span>
+                      <span className="text-slate-500 text-[10px] uppercase">{new Date(ev.date_audit).toLocaleDateString('fr-FR', { month: 'short' })}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-slate-300 font-medium text-sm">{ev.company_name || `${ev.first_name||''} ${ev.last_name||''}`}</p>
+                      <p className="text-xs text-slate-500">{ev.city || ''} {ev.installer ? `• ${ev.installer.name}` : ''}</p>
+                    </div>
+                    {ev.status && <Badge color={ev.status.color} small>{ev.status.name}</Badge>}
+                  </div>
+                ))}</div>
+              </div>}
+              {audits.length === 0 && <div className="text-center py-16">
+                <Calendar className="w-12 h-12 text-slate-600 mx-auto mb-4"/>
+                <p className="text-slate-400 mb-2">Aucun audit planifié</p>
+                <p className="text-xs text-slate-500">Ajoutez une date d'audit dans la fiche d'un prospect pour la voir apparaître ici</p>
+              </div>}
+            </>;
+          })()}
         </div>
       ) : planningTab === 'poses' ? (
         <div className="max-w-4xl mx-auto space-y-6">

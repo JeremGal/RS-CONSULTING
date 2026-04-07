@@ -1087,6 +1087,7 @@ export function useDiagnostic() {
    ============================ */
 export function usePlanning() {
   const [events, setEvents] = useState([]);
+  const [audits, setAudits] = useState([]);
   const [loading, setLoading] = useState(true);
   const { profile, isAdmin } = useAuth();
 
@@ -1094,24 +1095,36 @@ export function usePlanning() {
     if (!profile) return;
     setLoading(true);
     try {
-      let q = supabase
+      let myIds = null;
+      if (!isAdmin) {
+        const { data: assigned } = await supabase.from('prospect_assignments').select('prospect_id').eq('user_id', profile.id);
+        myIds = (assigned||[]).map(a => a.prospect_id);
+        if (myIds.length === 0) { setEvents([]); setAudits([]); setLoading(false); return; }
+      }
+      // Fetch poses
+      let qPose = supabase
         .from('prospects')
         .select('id, company_name, first_name, last_name, city, address, postal_code, phone, date_pose, status_id, installer_id, installer:installers(name), status:statuses(name,color), ca_previsionnel, ca_reel')
         .not('date_pose', 'is', null)
         .order('date_pose', { ascending: true });
-      // Non-admin: only show assigned prospects
-      if (!isAdmin) {
-        const { data: assigned } = await supabase.from('prospect_assignments').select('prospect_id').eq('user_id', profile.id);
-        const myIds = (assigned||[]).map(a => a.prospect_id);
-        if (myIds.length === 0) { setEvents([]); setLoading(false); return; }
-        q = q.in('id', myIds);
-      }
-      const { data, error } = await q;
-      if (error) throw error;
-      setEvents(data || []);
+      if (myIds) qPose = qPose.in('id', myIds);
+      // Fetch audits
+      let qAudit = supabase
+        .from('prospects')
+        .select('id, company_name, first_name, last_name, city, address, postal_code, phone, date_audit, status_id, installer_id, installer:installers(name), status:statuses(name,color), product_id')
+        .not('date_audit', 'is', null)
+        .order('date_audit', { ascending: true });
+      if (myIds) qAudit = qAudit.in('id', myIds);
+
+      const [poseRes, auditRes] = await Promise.all([qPose, qAudit]);
+      if (poseRes.error) throw poseRes.error;
+      if (auditRes.error) throw auditRes.error;
+      setEvents(poseRes.data || []);
+      setAudits(auditRes.data || []);
     } catch (e) {
       warn('Planning fetch error:', e);
       setEvents([]);
+      setAudits([]);
     } finally {
       setLoading(false);
     }
@@ -1130,7 +1143,7 @@ export function usePlanning() {
     return () => { clearTimeout(rt); supabase.removeChannel(ch); };
   }, [profile, fetchEvents]);
 
-  return { events, loading, refresh: fetchEvents };
+  return { events, audits, loading, refresh: fetchEvents };
 }
 
 /* ============================
