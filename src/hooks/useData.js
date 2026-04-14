@@ -1161,7 +1161,7 @@ export function useDevisStats() {
     try {
       const { data, error } = await supabase
         .from('prospects')
-        .select('status_id, product_id, category_id, installer_id, ca_previsionnel, ca_reel, commission_pac, commission_admin, commission_telepro, commission_fournisseur, created_at, updated_at, is_client, transmis_installateur, created_by');
+        .select('status_id, product_id, category_id, installer_id, ca_previsionnel, ca_reel, commission_pac, commission_admin, commission_telepro, commission_fournisseur, categorie_aide, zone_climatique, surface_batiment, surface_habitable, surface_mur_interieur, surface_mur_exterieur, surface_fenetre, surface_sous_sol, surface_comble, iti_option, is_ile_de_france, nb_personnes_foyer, revenu_fiscal_ref, created_at, updated_at, is_client, transmis_installateur, created_by');
       if (error) throw error;
       setRows((data || []).map(r => ({
         ...r,

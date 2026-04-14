@@ -2143,22 +2143,46 @@ const StatsPage = memo(({ onBack, statuses, products, categories, counts, isAdmi
     let rows = caRows;
     if (filterProductId !== 'all') rows = rows.filter(r => r.product_id === filterProductId);
     if (filterUserId !== 'all') rows = rows.filter(r => (r.assigned_users && Array.isArray(r.assigned_users) ? r.assigned_users.includes(filterUserId) : (r.created_by === filterUserId || r.user_id === filterUserId)));
-    // Calcul du "gain" par dossier selon produit ET rôle :
-    // - LED → CA devis (tous rôles)
-    // - PAC → commission_pac (admin uniquement, sinon 0)
-    // - ITI → admin voit total (admin+telepro+fournisseur) ; télépro voit telepro ; fournisseur voit fournisseur
+    // Calcul du "gain" par dossier selon produit ET rôle.
+    // Si les colonnes commission_* sont vides en base (anciennes fiches),
+    // on re-calcule à la volée via calcItiCommission / calcPacCommission.
     return rows.map(r => {
       const prod = products.find(p => p.id === r.product_id);
       const pCode = prod ? getProductCode({ product: prod }, products) : null;
       let _gain = 0, _gainReel = 0;
+
+      // Calcule la catégorie si elle manque en base
+      let cat = r.categorie_aide;
+      if (!cat && r.nb_personnes_foyer && r.revenu_fiscal_ref) {
+        cat = calcCategorieAide(r.nb_personnes_foyer, r.revenu_fiscal_ref, r.is_ile_de_france);
+      }
+
       if (pCode === 'pac') {
-        const v = isAdmin ? (r._commPac || 0) : 0;
+        // PAC : commission_pac en base, sinon calcul live à partir de cat + zone
+        let pacVal = parseFloat(r.commission_pac) || 0;
+        if (!pacVal && cat && r.zone_climatique) {
+          const pc = calcPacCommission(cat, r.zone_climatique);
+          if (pc) pacVal = pc.commission;
+        }
+        const v = isAdmin ? pacVal : 0;
         _gain = v; _gainReel = v;
       } else if (pCode === 'iti') {
+        // ITI : lire les 3 commissions en base, sinon calcul live
+        let cAdm = parseFloat(r.commission_admin) || 0;
+        let cTel = parseFloat(r.commission_telepro) || 0;
+        let cFour = parseFloat(r.commission_fournisseur) || 0;
+        if ((!cAdm && !cTel && !cFour) && cat) {
+          const surfH = (parseFloat(r.surface_batiment) || parseFloat(r.surface_habitable) || 0);
+          const totalIsoler = (parseFloat(r.surface_mur_interieur)||0) + (parseFloat(r.surface_mur_exterieur)||0) + (parseFloat(r.surface_fenetre)||0) + (parseFloat(r.surface_sous_sol)||0) + (parseFloat(r.surface_comble)||0);
+          if (surfH > 0 && totalIsoler > 0) {
+            const ic = calcItiCommission(cat, surfH, totalIsoler, r.iti_option || 'A');
+            if (ic) { cAdm = ic.admin; cTel = ic.telepro; cFour = ic.fournisseur; }
+          }
+        }
         let v = 0;
-        if (isAdmin) v = r._commIti || 0;
-        else if (userRole === 'fournisseur') v = parseFloat(r.commission_fournisseur) || 0;
-        else v = parseFloat(r.commission_telepro) || 0;
+        if (isAdmin) v = cAdm + cTel + cFour;
+        else if (userRole === 'fournisseur') v = cFour;
+        else v = cTel;
         _gain = v; _gainReel = v;
       } else {
         _gain = r._ca || 0; _gainReel = r._reel || 0;
