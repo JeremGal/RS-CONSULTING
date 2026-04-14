@@ -787,15 +787,6 @@ const MainApp = memo(({ themeBtn }) => {
             </div>
           </div>}
 
-          {/* Secteurs d'activité */}
-          <div>
-            <div className="text-[10px] font-semibold text-slate-500 uppercase mb-1.5 flex items-center gap-1.5"><Tag className="w-3 h-3"/> Secteurs d'activité</div>
-            <div className="space-y-0.5">
-              <FilterButton active={!params.categoryIds.length} onClick={()=>setFilter('categoryIds',[])} count={counts.total}>Toutes</FilterButton>
-              {categories.map(c=><FilterButton key={c.id} active={params.categoryIds.includes(c.id)} onClick={()=>toggleFilter('categoryIds',c.id)} count={counts.by_category?.[c.id]||0} color={c.color}>{c.name}</FilterButton>)}
-            </div>
-          </div>
-
           {/* Statuts */}
           <div>
             <div className="text-[10px] font-semibold text-slate-500 uppercase mb-1.5 flex items-center gap-1.5"><FolderOpen className="w-3 h-3"/> Statuts</div>
