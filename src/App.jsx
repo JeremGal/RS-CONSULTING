@@ -696,7 +696,7 @@ const MainApp = memo(({ themeBtn }) => {
     <DetailPage prospect={selectedProspect} onClose={closeProspect} onUpdate={handleUpdate} onDelete={handleDelete}
       onDuplicate={handleDuplicate} onAssign={handleAssign} onUnassign={handleUnassign}
       categories={categories} statuses={statuses} products={products} installers={installers} sources={sources}
-      users={activeUsers} isAdmin={isAdmin} showAlert={showAlert} onQuickStatus={handleQuickStatus}/>
+      users={activeUsers} isAdmin={isAdmin} userRole={profile?.role} showAlert={showAlert} onQuickStatus={handleQuickStatus}/>
   </>;
   if (view==='stats' && isAdmin) return <><Alert alert={alert} onClose={clearAlert}/><StatsPage onBack={()=>setView('list')} statuses={statuses} products={products} categories={categories} counts={counts} isAdmin={isAdmin} allUsers={users} onOpenProspect={openProspect} onlineUsers={onlineUsers}/></>;
   if (view==='activity') return <><Alert alert={alert} onClose={clearAlert}/><ActivityPage onBack={()=>setView('list')}/></>;
@@ -1151,7 +1151,7 @@ const BuildingCard = memo(({ building, index, onUpdate, onDelete, showAlert }) =
 // =====================================================
 // DETAIL PAGE
 // =====================================================
-const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, onDuplicate, onAssign, onUnassign, categories, statuses, products, installers, sources, users, isAdmin, showAlert, onQuickStatus }) => {
+const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, onDuplicate, onAssign, onUnassign, categories, statuses, products, installers, sources, users, isAdmin, userRole, showAlert, onQuickStatus }) => {
   // Fetch full prospect directly (RPC might not return all columns like nb_led)
   const [fullProspect, setFullProspect] = useState(null);
   const refetchFull = useCallback(() => {
@@ -1712,12 +1712,15 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
                     {itiCalc ? <div className="bg-slate-800/50 rounded-xl p-3 space-y-2 border border-slate-700">
                       <p className="text-xs font-semibold text-emerald-400 uppercase tracking-wider flex items-center gap-1"><Euro className="w-3 h-3"/> Calcul automatique (BAR-TH-174)</p>
                       <div className="flex justify-between"><span className="text-xs text-slate-400">Reste à charge</span><span className="text-sm font-bold text-white">{itiCalc.rac.toLocaleString('fr-FR')} €</span></div>
+                      {/* Admin : voit tout ; Fournisseur : uniquement sa com ; Télépro/user : uniquement sa com */}
                       {isAdmin && <>
                         <div className="flex justify-between"><span className="text-xs text-slate-400">Commission Admin</span><span className="text-sm font-bold text-emerald-400">{itiCalc.admin.toLocaleString('fr-FR')} €</span></div>
                         <div className="flex justify-between"><span className="text-xs text-slate-400">Commission Télépro</span><span className="text-sm font-bold text-blue-400">{itiCalc.telepro.toLocaleString('fr-FR')} €</span></div>
                         <div className="flex justify-between"><span className="text-xs text-slate-400">Commission Fournisseur</span><span className="text-sm font-bold text-amber-400">{itiCalc.fournisseur.toLocaleString('fr-FR')} €</span></div>
                         <div className="pt-2 border-t border-slate-700 flex justify-between"><span className="text-xs font-semibold text-slate-300">Total commissions</span><span className="text-sm font-bold text-emerald-300">{(itiCalc.admin + itiCalc.telepro + itiCalc.fournisseur).toLocaleString('fr-FR')} €</span></div>
                       </>}
+                      {!isAdmin && userRole === 'fournisseur' && <div className="flex justify-between"><span className="text-xs text-slate-400">Votre commission (Fournisseur)</span><span className="text-sm font-bold text-amber-400">{itiCalc.fournisseur.toLocaleString('fr-FR')} €</span></div>}
+                      {!isAdmin && userRole !== 'fournisseur' && <div className="flex justify-between"><span className="text-xs text-slate-400">Votre commission (Télépro)</span><span className="text-sm font-bold text-blue-400">{itiCalc.telepro.toLocaleString('fr-FR')} €</span></div>}
                     </div> : <div className="bg-slate-800/30 border border-dashed border-slate-600 rounded-lg p-3 text-xs text-slate-400">
                       <p className="font-semibold text-slate-300 mb-1 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> Calcul commission ITI en attente</p>
                       <p className="text-[11px]">Pour afficher le Reste à charge et les commissions, renseignez :</p>
@@ -2084,6 +2087,8 @@ const InteractiveLineChart = memo(({ data, lines, height=140, labels=true, forma
 // =====================================================
 const periodLabels = { today:"Aujourd'hui", '7d':'7 jours', '30d':'30 jours', month:'Ce mois', all:'Tout', custom:'Dates' };
 const StatsPage = memo(({ onBack, statuses, products, categories, counts, isAdmin, allUsers, onOpenProspect, onlineUsers }) => {
+  const { profile } = useAuth();
+  const userRole = profile?.role;
   const { rows: caRows, loading: devisLoading } = useDevisStats();
   const { logs: timeline, loading: tlLoading } = useGlobalTimeline(500);
   const [selUser, setSelUser] = useState(null);
@@ -2138,18 +2143,29 @@ const StatsPage = memo(({ onBack, statuses, products, categories, counts, isAdmi
     let rows = caRows;
     if (filterProductId !== 'all') rows = rows.filter(r => r.product_id === filterProductId);
     if (filterUserId !== 'all') rows = rows.filter(r => (r.assigned_users && Array.isArray(r.assigned_users) ? r.assigned_users.includes(filterUserId) : (r.created_by === filterUserId || r.user_id === filterUserId)));
-    // Calcul du "gain" par dossier selon produit :
-    // LED → CA devis ; PAC → commission_pac ; ITI → total commissions (admin+telepro+fournisseur)
+    // Calcul du "gain" par dossier selon produit ET rôle :
+    // - LED → CA devis (tous rôles)
+    // - PAC → commission_pac (admin uniquement, sinon 0)
+    // - ITI → admin voit total (admin+telepro+fournisseur) ; télépro voit telepro ; fournisseur voit fournisseur
     return rows.map(r => {
       const prod = products.find(p => p.id === r.product_id);
       const pCode = prod ? getProductCode({ product: prod }, products) : null;
       let _gain = 0, _gainReel = 0;
-      if (pCode === 'pac') { _gain = r._commPac || 0; _gainReel = r._commPac || 0; }
-      else if (pCode === 'iti') { _gain = r._commIti || 0; _gainReel = r._commIti || 0; }
-      else { _gain = r._ca || 0; _gainReel = r._reel || 0; }
+      if (pCode === 'pac') {
+        const v = isAdmin ? (r._commPac || 0) : 0;
+        _gain = v; _gainReel = v;
+      } else if (pCode === 'iti') {
+        let v = 0;
+        if (isAdmin) v = r._commIti || 0;
+        else if (userRole === 'fournisseur') v = parseFloat(r.commission_fournisseur) || 0;
+        else v = parseFloat(r.commission_telepro) || 0;
+        _gain = v; _gainReel = v;
+      } else {
+        _gain = r._ca || 0; _gainReel = r._reel || 0;
+      }
       return { ...r, _gain, _gainReel, _pCode: pCode };
     });
-  }, [caRows, filterProductId, filterUserId, products]);
+  }, [caRows, filterProductId, filterUserId, products, isAdmin, userRole]);
 
   const periodStats = useMemo(() => {
     const inR = (r, b) => { const d = new Date(r.created_at); return d >= b.start && d <= b.end; };
