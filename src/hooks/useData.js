@@ -1168,7 +1168,7 @@ export function useDevisStats() {
         _ca: parseFloat(r.ca_previsionnel) || 0,
         _reel: parseFloat(r.ca_reel) || 0,
         _commPac: parseFloat(r.commission_pac) || 0,
-        _commIti: (parseFloat(r.commission_admin) || 0) + (parseFloat(r.commission_telepro) || 0) + (parseFloat(r.commission_fournisseur) || 0),
+        _commIti: parseFloat(r.commission_admin) || 0,
       })));
     } catch (e) {
       warn('DevisStats error:', e);
@@ -1382,16 +1382,32 @@ export function useChat(channel) {
     if (!profile || !channel) return;
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('chat_messages')
-        .select('*, profile:profiles(id, first_name, last_name, role)')
-        .eq('channel', channel)
-        .order('created_at', { ascending: true })
-        .limit(200);
-      if (error) throw error;
+      // Essai avec join FK, sinon fallback sans join
+      let data, error;
+      try {
+        const r = await supabase
+          .from('chat_messages')
+          .select('*, profile:profiles(id, first_name, last_name, role)')
+          .eq('channel', channel)
+          .order('created_at', { ascending: true })
+          .limit(200);
+        data = r.data; error = r.error;
+      } catch (e) { error = e; }
+      if (error || !data) {
+        // Fallback : requête simple sans join, le composant peut résoudre les noms via allUsers
+        const r2 = await supabase
+          .from('chat_messages')
+          .select('id, channel, user_id, content, created_at')
+          .eq('channel', channel)
+          .order('created_at', { ascending: true })
+          .limit(200);
+        if (r2.error) throw r2.error;
+        data = r2.data;
+      }
       setMessages(data || []);
     } catch (e) {
       if (import.meta.env.DEV) console.warn('Chat fetch error:', e);
+      setMessages([]);
     } finally {
       setLoading(false);
     }

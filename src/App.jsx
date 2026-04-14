@@ -166,56 +166,54 @@ const itiNeedsOption = (categorie, surfaceHabitable, surfaceIsoler) => {
 };
 
 // Commission et reste à charge ITI (BAR-TH-174) selon 22 règles
+// Retourne { rac, commission } — la commission est la valeur totale du dossier (ex: 1200 €)
 const calcItiCommission = (categorie, surfaceHabitable, surfaceIsoler, option) => {
   if (!categorie || !surfaceHabitable || !surfaceIsoler) return null;
   const h = Number(surfaceHabitable);
   const i = Number(surfaceIsoler);
   if (h <= 0 || i <= 0) return null;
-  const isPlus = i >= 160; // +160 (≥) vs -160 (<)
-  const base = { telepro: 150, fournisseur: 100 };
+  const isPlus = i >= 160;
 
   // 🔵 BLEU — RAC 0 partout
   if (categorie === 'bleu') {
-    if (h >= 60 && h < 90) return { ...base, rac: 0, admin: isPlus ? 1000 : 1200 };
-    if (h >= 90 && h < 110) return { ...base, rac: 0, admin: isPlus ? 1200 : 1500 };
-    if (h >= 110 && h < 130) return { ...base, rac: 0, admin: isPlus ? 1500 : 1800 };
-    if (h >= 130) return { ...base, rac: 0, admin: isPlus ? 1800 : 2000 };
+    if (h >= 60 && h < 90) return { rac: 0, commission: isPlus ? 1000 : 1200 };
+    if (h >= 90 && h < 110) return { rac: 0, commission: isPlus ? 1200 : 1500 };
+    if (h >= 110 && h < 130) return { rac: 0, commission: isPlus ? 1500 : 1800 };
+    if (h >= 130) return { rac: 0, commission: isPlus ? 1800 : 2000 };
     return null;
   }
 
   // 🟡 JAUNE
   if (categorie === 'jaune') {
     if (h >= 60 && h < 90) {
-      if (isPlus) return { ...base, rac: 10 * i, admin: 800 };
-      return { ...base, rac: 1500, admin: 1000 };
+      if (isPlus) return { rac: 10 * i, commission: 800 };
+      return { rac: 1500, commission: 1000 };
     }
     if (h >= 90 && h < 110) {
-      if (isPlus) return { ...base, rac: 1500, admin: 1000 };
-      // -160 → Option A ou B
-      if (option === 'B') return { ...base, rac: 1000, admin: 1000 };
-      return { ...base, rac: 0, admin: 500 }; // défaut A
+      if (isPlus) return { rac: 1500, commission: 1000 };
+      if (option === 'B') return { rac: 1000, commission: 1000 };
+      return { rac: 0, commission: 500 };
     }
     if (h >= 110 && h < 130) {
       if (isPlus) {
-        // +160 → Option A ou B
-        if (option === 'B') return { ...base, rac: 1000, admin: 1000 };
-        return { ...base, rac: 0, admin: 500 }; // défaut A
+        if (option === 'B') return { rac: 1000, commission: 1000 };
+        return { rac: 0, commission: 500 };
       }
-      return { ...base, rac: 0, admin: 1000 };
+      return { rac: 0, commission: 1000 };
     }
     if (h >= 130) {
-      if (isPlus) return { ...base, rac: 0, admin: 1000 };
-      return { ...base, rac: 0, admin: 1200 };
+      if (isPlus) return { rac: 0, commission: 1000 };
+      return { rac: 0, commission: 1200 };
     }
     return null;
   }
 
   // 🟣 VIOLET — RAC au m²
   if (categorie === 'violet') {
-    if (h >= 60 && h < 90) return { ...base, rac: 30 * i, admin: 500 };
-    if (h >= 90 && h < 110) return { ...base, rac: 20 * i, admin: 500 };
-    if (h >= 110 && h < 130) return { ...base, rac: 15 * i, admin: 1000 };
-    if (h >= 130) return { ...base, rac: 15 * i, admin: 800 };
+    if (h >= 60 && h < 90) return { rac: 30 * i, commission: 500 };
+    if (h >= 90 && h < 110) return { rac: 20 * i, commission: 500 };
+    if (h >= 110 && h < 130) return { rac: 15 * i, commission: 1000 };
+    if (h >= 130) return { rac: 15 * i, commission: 800 };
     return null;
   }
 
@@ -696,7 +694,7 @@ const MainApp = memo(({ themeBtn }) => {
     <DetailPage prospect={selectedProspect} onClose={closeProspect} onUpdate={handleUpdate} onDelete={handleDelete}
       onDuplicate={handleDuplicate} onAssign={handleAssign} onUnassign={handleUnassign}
       categories={categories} statuses={statuses} products={products} installers={installers} sources={sources}
-      users={activeUsers} isAdmin={isAdmin} userRole={profile?.role} showAlert={showAlert} onQuickStatus={handleQuickStatus}/>
+      users={activeUsers} isAdmin={isAdmin} userRole={profile?.role} onlineUsers={onlineUsers} showAlert={showAlert} onQuickStatus={handleQuickStatus}/>
   </>;
   if (view==='stats' && isAdmin) return <><Alert alert={alert} onClose={clearAlert}/><StatsPage onBack={()=>setView('list')} statuses={statuses} products={products} categories={categories} counts={counts} isAdmin={isAdmin} allUsers={users} onOpenProspect={openProspect} onlineUsers={onlineUsers}/></>;
   if (view==='activity') return <><Alert alert={alert} onClose={clearAlert}/><ActivityPage onBack={()=>setView('list')}/></>;
@@ -1142,7 +1140,8 @@ const BuildingCard = memo(({ building, index, onUpdate, onDelete, showAlert }) =
 // =====================================================
 // DETAIL PAGE
 // =====================================================
-const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, onDuplicate, onAssign, onUnassign, categories, statuses, products, installers, sources, users, isAdmin, userRole, showAlert, onQuickStatus }) => {
+const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, onDuplicate, onAssign, onUnassign, categories, statuses, products, installers, sources, users, isAdmin, userRole, onlineUsers, showAlert, onQuickStatus }) => {
+  const [showChatPanel, setShowChatPanel] = useState(false);
   // Fetch full prospect directly (RPC might not return all columns like nb_led)
   const [fullProspect, setFullProspect] = useState(null);
   const refetchFull = useCallback(() => {
@@ -1239,9 +1238,10 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
       const itiCalc = calcItiCommission(cat, itiSurfH, totalIsoler, saveData.iti_option || 'A');
       if (itiCalc) {
         saveData.reste_a_charge = itiCalc.rac;
-        saveData.commission_admin = itiCalc.admin;
-        saveData.commission_telepro = itiCalc.telepro;
-        saveData.commission_fournisseur = itiCalc.fournisseur;
+        saveData.commission_admin = itiCalc.commission;
+        // Télépro/Fournisseur ne sont plus utilisés — on les remet à null pour propreté
+        saveData.commission_telepro = null;
+        saveData.commission_fournisseur = null;
       }
     }
     lastSavedRef.current = { time: Date.now(), data: saveData };
@@ -1369,6 +1369,7 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
               <Btn size="sm" onClick={()=>{setForm(prospect);setEditing(false);}}>Annuler</Btn>
               <Btn size="sm" variant="primary" icon={Save} onClick={handleSave}>Enregistrer</Btn>
             </> : <>
+              <Btn size="sm" variant="ghost" icon={MessageSquare} onClick={()=>setShowChatPanel(true)} title="Chat équipe">Chat</Btn>
               {isAdmin&&<Btn size="sm" variant="ghost" icon={Copy} onClick={()=>onDuplicate(prospect)}/>}
               <Btn size="sm" icon={Edit} onClick={()=>setEditing(true)}>Modifier</Btn>
               {isAdmin&&<Btn size="sm" variant="ghost" onClick={()=>onDelete(prospect.id)}><Trash2 className="w-4 h-4 text-red-400"/></Btn>}
@@ -1703,15 +1704,7 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
                     {itiCalc ? <div className="bg-slate-800/50 rounded-xl p-3 space-y-2 border border-slate-700">
                       <p className="text-xs font-semibold text-emerald-400 uppercase tracking-wider flex items-center gap-1"><Euro className="w-3 h-3"/> Calcul automatique (BAR-TH-174)</p>
                       <div className="flex justify-between"><span className="text-xs text-slate-400">Reste à charge</span><span className="text-sm font-bold text-white">{itiCalc.rac.toLocaleString('fr-FR')} €</span></div>
-                      {/* Admin : voit tout ; Fournisseur : uniquement sa com ; Télépro/user : uniquement sa com */}
-                      {isAdmin && <>
-                        <div className="flex justify-between"><span className="text-xs text-slate-400">Commission Admin</span><span className="text-sm font-bold text-emerald-400">{itiCalc.admin.toLocaleString('fr-FR')} €</span></div>
-                        <div className="flex justify-between"><span className="text-xs text-slate-400">Commission Télépro</span><span className="text-sm font-bold text-blue-400">{itiCalc.telepro.toLocaleString('fr-FR')} €</span></div>
-                        <div className="flex justify-between"><span className="text-xs text-slate-400">Commission Fournisseur</span><span className="text-sm font-bold text-amber-400">{itiCalc.fournisseur.toLocaleString('fr-FR')} €</span></div>
-                        <div className="pt-2 border-t border-slate-700 flex justify-between"><span className="text-xs font-semibold text-slate-300">Total commissions</span><span className="text-sm font-bold text-emerald-300">{(itiCalc.admin + itiCalc.telepro + itiCalc.fournisseur).toLocaleString('fr-FR')} €</span></div>
-                      </>}
-                      {!isAdmin && userRole === 'fournisseur' && <div className="flex justify-between"><span className="text-xs text-slate-400">Votre commission (Fournisseur)</span><span className="text-sm font-bold text-amber-400">{itiCalc.fournisseur.toLocaleString('fr-FR')} €</span></div>}
-                      {!isAdmin && userRole !== 'fournisseur' && <div className="flex justify-between"><span className="text-xs text-slate-400">Votre commission (Télépro)</span><span className="text-sm font-bold text-blue-400">{itiCalc.telepro.toLocaleString('fr-FR')} €</span></div>}
+                      {isAdmin && <div className="flex justify-between pt-1 border-t border-slate-700"><span className="text-xs font-semibold text-slate-300">Commission</span><span className="text-sm font-bold text-emerald-400">{itiCalc.commission.toLocaleString('fr-FR')} €</span></div>}
                     </div> : <div className="bg-slate-800/30 border border-dashed border-slate-600 rounded-lg p-3 text-xs text-slate-400">
                       <p className="font-semibold text-slate-300 mb-1 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> Calcul commission ITI en attente</p>
                       <p className="text-[11px]">Pour afficher le Reste à charge et les commissions, renseignez :</p>
@@ -2015,8 +2008,72 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
           {logs.length===0&&<p className="text-center text-slate-500 py-8 text-sm">Aucune activité</p>}
         </div>}
       </div>
+      {/* Chat équipe — panneau latéral */}
+      {showChatPanel && <ChatSidePanel onClose={()=>setShowChatPanel(false)} allUsers={users} onlineUsers={onlineUsers}/>}
     </div>
   );
+});
+
+// =====================================================
+// CHAT SIDE PANEL — slide-over réutilisable depuis n'importe quelle page
+// =====================================================
+const ChatSidePanel = memo(({ onClose, allUsers, onlineUsers }) => {
+  const [activeChannel, setActiveChannel] = useState('general');
+  const { messages, loading, sendMessage, deleteMessage } = useChat(activeChannel);
+  const [msg, setMsg] = useState('');
+  const [sending, setSending] = useState(false);
+  const endRef = useRef(null);
+  const { profile } = useAuth();
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+  const handleSend = async () => {
+    if (!msg.trim() || sending) return;
+    setSending(true);
+    try { await sendMessage(msg); setMsg(''); } catch(e) { console.warn(e); }
+    finally { setSending(false); }
+  };
+  const channels = [
+    { id: 'general', label: 'Général', color: '#10B981' },
+    { id: 'iti', label: 'ITI', color: '#3B82F6' },
+    { id: 'pac', label: 'PAC', color: '#EF4444' },
+  ];
+  return <div className="fixed inset-0 z-50 flex" onClick={onClose}>
+    <div className="flex-1 bg-black/40"/>
+    <div className="w-[440px] max-w-full bg-slate-900 border-l border-slate-700 flex flex-col shadow-2xl" onClick={e=>e.stopPropagation()}>
+      <div className="px-4 py-3 border-b border-slate-700 flex items-center justify-between">
+        <div className="flex items-center gap-2"><MessageSquare className="w-4 h-4 text-emerald-400"/><h2 className="text-sm font-semibold text-white">Chat équipe</h2></div>
+        <button onClick={onClose} className="p-1.5 hover:bg-slate-800 rounded text-slate-400"><X className="w-4 h-4"/></button>
+      </div>
+      <div className="px-4 py-2 border-b border-slate-700 flex gap-1.5">
+        {channels.map(ch => <button key={ch.id} onClick={()=>setActiveChannel(ch.id)} className={cn("px-2.5 py-1 rounded text-xs font-medium transition-colors", activeChannel===ch.id?"bg-slate-700 text-white":"text-slate-400 hover:text-white")} style={activeChannel===ch.id?{borderBottom:`2px solid ${ch.color}`}:{}}># {ch.label}</button>)}
+      </div>
+      <div className="flex-1 overflow-auto px-4 py-3 space-y-1">
+        {loading && <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 text-emerald-400 animate-spin"/></div>}
+        {!loading && messages.length===0 && <p className="text-xs text-slate-500 text-center py-8">Aucun message</p>}
+        {messages.map((m, i) => {
+          const isMe = m.user_id === profile?.id;
+          const prev = i > 0 ? messages[i-1] : null;
+          const showHeader = !prev || prev.user_id !== m.user_id || (new Date(m.created_at) - new Date(prev.created_at) > 300000);
+          const userObj = m.profile || (allUsers||[]).find(u => u.id === m.user_id) || {};
+          return <div key={m.id} className={cn("group", showHeader && "mt-2")}>
+            {showHeader && <div className="flex items-center gap-2 mb-0.5">
+              <div className={cn("w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold", isMe?"bg-emerald-600":"bg-blue-600")}>{userObj.first_name?.[0]||'?'}</div>
+              <span className={cn("text-xs font-semibold", isMe?"text-emerald-400":"text-white")}>{userObj.first_name||'Utilisateur'} {userObj.last_name||''}</span>
+              <span className="text-[9px] text-slate-500">{formatDateTime(m.created_at)}</span>
+            </div>}
+            <div className="flex items-start gap-1 pl-8">
+              <p className="text-xs text-slate-300 leading-relaxed flex-1 whitespace-pre-wrap break-words">{m.content}</p>
+              {isMe && <button onClick={async()=>{if(confirm('Supprimer ?')) try{await deleteMessage(m.id);}catch(e){}}} className="p-0.5 opacity-0 group-hover:opacity-100 hover:bg-red-500/20 rounded text-red-400"><Trash2 className="w-3 h-3"/></button>}
+            </div>
+          </div>;
+        })}
+        <div ref={endRef}/>
+      </div>
+      <div className="px-4 py-3 border-t border-slate-700 flex gap-2">
+        <Input value={msg} onChange={e=>setMsg(e.target.value)} placeholder={`Message dans #${channels.find(c=>c.id===activeChannel)?.label}`} className="flex-1" onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();handleSend();}}}/>
+        <Btn variant="primary" size="sm" onClick={handleSend} disabled={sending||!msg.trim()} icon={Send}>{sending?<Loader2 className="w-3 h-3 animate-spin"/>:null}</Btn>
+      </div>
+    </div>
+  </div>;
 });
 
 // =====================================================
@@ -2158,22 +2215,17 @@ const StatsPage = memo(({ onBack, statuses, products, categories, counts, isAdmi
         const v = isAdmin ? pacVal : 0;
         _gain = v; _gainReel = v;
       } else if (pCode === 'iti') {
-        // ITI : lire les 3 commissions en base, sinon calcul live
+        // ITI : commission unique (commission_admin). Calcul live si vide.
         let cAdm = parseFloat(r.commission_admin) || 0;
-        let cTel = parseFloat(r.commission_telepro) || 0;
-        let cFour = parseFloat(r.commission_fournisseur) || 0;
-        if ((!cAdm && !cTel && !cFour) && cat) {
+        if (!cAdm && cat) {
           const surfH = (parseFloat(r.surface_batiment) || parseFloat(r.surface_habitable) || 0);
           const totalIsoler = (parseFloat(r.surface_mur_interieur)||0) + (parseFloat(r.surface_mur_exterieur)||0) + (parseFloat(r.surface_fenetre)||0) + (parseFloat(r.surface_sous_sol)||0) + (parseFloat(r.surface_comble)||0);
           if (surfH > 0 && totalIsoler > 0) {
             const ic = calcItiCommission(cat, surfH, totalIsoler, r.iti_option || 'A');
-            if (ic) { cAdm = ic.admin; cTel = ic.telepro; cFour = ic.fournisseur; }
+            if (ic) cAdm = ic.commission;
           }
         }
-        let v = 0;
-        if (isAdmin) v = cAdm + cTel + cFour;
-        else if (userRole === 'fournisseur') v = cFour;
-        else v = cTel;
+        const v = isAdmin ? cAdm : 0;
         _gain = v; _gainReel = v;
       } else {
         _gain = r._ca || 0; _gainReel = r._reel || 0;
@@ -3206,13 +3258,15 @@ const ChatPage = memo(({ onBack, allUsers, onlineUsers }) => {
             const prev = i > 0 ? messages[i-1] : null;
             const showHeader = !prev || prev.user_id !== m.user_id || (new Date(m.created_at) - new Date(prev.created_at) > 300000);
             const isOnline = !!onlineUsers?.[m.user_id];
+            // Fallback: lookup dans allUsers si le join FK a échoué
+            const userObj = m.profile || (allUsers||[]).find(u => u.id === m.user_id) || {};
             return <div key={m.id} className={cn("group", showHeader && "mt-3")}>
               {showHeader && <div className="flex items-center gap-2 mb-1">
                 <div className="relative">
-                  <div className={cn("w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold", isMe ? "bg-gradient-to-br from-emerald-400 to-emerald-600" : "bg-gradient-to-br from-blue-400 to-blue-600")}>{m.profile?.first_name?.[0] || '?'}</div>
+                  <div className={cn("w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold", isMe ? "bg-gradient-to-br from-emerald-400 to-emerald-600" : "bg-gradient-to-br from-blue-400 to-blue-600")}>{userObj.first_name?.[0] || '?'}</div>
                   {isOnline && <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-emerald-400 rounded-full border border-slate-900"/>}
                 </div>
-                <span className={cn("text-sm font-semibold", isMe ? "text-emerald-400" : "text-white")}>{m.profile?.first_name} {m.profile?.last_name}</span>
+                <span className={cn("text-sm font-semibold", isMe ? "text-emerald-400" : "text-white")}>{userObj.first_name || 'Utilisateur'} {userObj.last_name || ''}</span>
                 <span className="text-[10px] text-slate-500">{formatDateTime(m.created_at)}</span>
               </div>}
               <div className="flex items-start gap-2 pl-9">
@@ -3285,9 +3339,7 @@ const ProspectModal = memo(({ open, onClose, onSubmit, categories, statuses, pro
       const ic = calcItiCommission(cat, mItiSurfH, totalIsoler, submitData.iti_option || 'A');
       if (ic) {
         submitData.reste_a_charge = ic.rac;
-        submitData.commission_admin = ic.admin;
-        submitData.commission_telepro = ic.telepro;
-        submitData.commission_fournisseur = ic.fournisseur;
+        submitData.commission_admin = ic.commission;
       }
     }
     try { await onSubmit(submitData); }
