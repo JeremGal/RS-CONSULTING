@@ -1243,8 +1243,9 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
       const pacCalc = calcPacCommission(cat, saveData.zone_climatique);
       if (pacCalc) { saveData.reste_a_charge = pacCalc.reste_a_charge; saveData.commission_pac = pacCalc.commission; }
     }
-    if (pCode === 'iti' && cat && saveData.surface_habitable && totalIsoler > 0) {
-      const itiCalc = calcItiCommission(cat, saveData.surface_habitable, totalIsoler, saveData.iti_option || 'A');
+    const itiSurfH = parseFloat(saveData.surface_batiment) || parseFloat(saveData.surface_habitable) || 0;
+    if (pCode === 'iti' && cat && itiSurfH > 0 && totalIsoler > 0) {
+      const itiCalc = calcItiCommission(cat, itiSurfH, totalIsoler, saveData.iti_option || 'A');
       if (itiCalc) {
         saveData.reste_a_charge = itiCalc.rac;
         saveData.commission_admin = itiCalc.admin;
@@ -1633,7 +1634,6 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
                   {form.categorie_aide && !computedCategorie && <Badge color={categorieAideColors[form.categorie_aide]}>Profil {form.categorie_aide} ({categorieAideLabels[form.categorie_aide]})</Badge>}
                 </div>
                 {field("Numéro fiscal", "numero_fiscal")}
-                {field("Reste à charge (€)", "reste_a_charge", "number")}
                 {/* Surfaces */}
                 <div className="bg-slate-800/50 rounded-xl p-3 space-y-3 border border-slate-700">
                   <p className="text-xs font-semibold text-emerald-400 uppercase tracking-wider">Surfaces</p>
@@ -1684,8 +1684,9 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
                 {(() => {
                   const cat = computedCategorie || form.categorie_aide;
                   const totalIsoler = sumSurfacesIsoler(form);
-                  const needsOption = itiNeedsOption(cat, form.surface_habitable, totalIsoler);
-                  const itiCalc = calcItiCommission(cat, form.surface_habitable, totalIsoler, form.iti_option || 'A');
+                  const surfH = parseFloat(form.surface_batiment) || parseFloat(form.surface_habitable) || 0;
+                  const needsOption = itiNeedsOption(cat, surfH, totalIsoler);
+                  const itiCalc = calcItiCommission(cat, surfH, totalIsoler, form.iti_option || 'A');
                   return <>
                     {needsOption && <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3">
                       <label className="block text-xs font-semibold text-amber-400 mb-2 uppercase tracking-wider">Option à choisir</label>
@@ -1694,7 +1695,7 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
                         const prev = form.iti_option;
                         setForm(f => ({...f, iti_option: val}));
                         const saveData = { iti_option: val };
-                        const newCalc = calcItiCommission(cat, form.surface_habitable, totalIsoler, val);
+                        const newCalc = calcItiCommission(cat, surfH, totalIsoler, val);
                         if (newCalc) {
                           saveData.reste_a_charge = newCalc.rac;
                           saveData.commission_admin = newCalc.admin;
@@ -1708,8 +1709,8 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
                         <option value="B">Option B (RAC 1 000 € / Admin 1 000 €)</option>
                       </Select>
                     </div>}
-                    {itiCalc && <div className="bg-slate-800/50 rounded-xl p-3 space-y-2 border border-slate-700">
-                      <p className="text-xs font-semibold text-emerald-400 uppercase tracking-wider flex items-center gap-1"><Euro className="w-3 h-3"/> Calcul automatique</p>
+                    {itiCalc ? <div className="bg-slate-800/50 rounded-xl p-3 space-y-2 border border-slate-700">
+                      <p className="text-xs font-semibold text-emerald-400 uppercase tracking-wider flex items-center gap-1"><Euro className="w-3 h-3"/> Calcul automatique (BAR-TH-174)</p>
                       <div className="flex justify-between"><span className="text-xs text-slate-400">Reste à charge</span><span className="text-sm font-bold text-white">{itiCalc.rac.toLocaleString('fr-FR')} €</span></div>
                       {isAdmin && <>
                         <div className="flex justify-between"><span className="text-xs text-slate-400">Commission Admin</span><span className="text-sm font-bold text-emerald-400">{itiCalc.admin.toLocaleString('fr-FR')} €</span></div>
@@ -1717,6 +1718,15 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
                         <div className="flex justify-between"><span className="text-xs text-slate-400">Commission Fournisseur</span><span className="text-sm font-bold text-amber-400">{itiCalc.fournisseur.toLocaleString('fr-FR')} €</span></div>
                         <div className="pt-2 border-t border-slate-700 flex justify-between"><span className="text-xs font-semibold text-slate-300">Total commissions</span><span className="text-sm font-bold text-emerald-300">{(itiCalc.admin + itiCalc.telepro + itiCalc.fournisseur).toLocaleString('fr-FR')} €</span></div>
                       </>}
+                    </div> : <div className="bg-slate-800/30 border border-dashed border-slate-600 rounded-lg p-3 text-xs text-slate-400">
+                      <p className="font-semibold text-slate-300 mb-1 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> Calcul commission ITI en attente</p>
+                      <p className="text-[11px]">Pour afficher le Reste à charge et les commissions, renseignez :</p>
+                      <ul className="list-disc list-inside mt-1 space-y-0.5 text-[11px]">
+                        {!cat && <li className="text-amber-400">Catégorie d'aide (Nb personnes + revenu fiscal)</li>}
+                        {surfH <= 0 && <li className="text-amber-400">Surface bâtiment</li>}
+                        {totalIsoler <= 0 && <li className="text-amber-400">Au moins une surface à isoler (mur int/ext, fenêtre, sous-sol, comble)</li>}
+                        {cat === 'rose' && <li className="text-red-400">Profil Rose (Aisé) : pas d'aide CEE applicable</li>}
+                      </ul>
                     </div>}
                   </>;
                 })()}
@@ -3239,8 +3249,9 @@ const ProspectModal = memo(({ open, onClose, onSubmit, categories, statuses, pro
       const pc = calcPacCommission(cat, submitData.zone_climatique);
       if (pc) { submitData.reste_a_charge = pc.reste_a_charge; submitData.commission_pac = pc.commission; }
     }
-    if (pCodeForCalc === 'iti' && cat && submitData.surface_habitable && totalIsoler > 0) {
-      const ic = calcItiCommission(cat, submitData.surface_habitable, totalIsoler, submitData.iti_option || 'A');
+    const mItiSurfH = parseFloat(submitData.surface_batiment) || parseFloat(submitData.surface_habitable) || 0;
+    if (pCodeForCalc === 'iti' && cat && mItiSurfH > 0 && totalIsoler > 0) {
+      const ic = calcItiCommission(cat, mItiSurfH, totalIsoler, submitData.iti_option || 'A');
       if (ic) {
         submitData.reste_a_charge = ic.rac;
         submitData.commission_admin = ic.admin;
