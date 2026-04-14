@@ -8,7 +8,7 @@ import {
   List, Loader2, Navigation, Truck, Crown, CalendarDays, CalendarCheck, Euro,
   Sun, Moon, Layers, ArrowUpRight, ArrowDownRight, Award, Zap, Activity,
   Trophy, Banknote, GitBranch, AlertTriangle, LogIn, Shield, UserX, Timer,
-  MessageSquare, Hash
+  MessageSquare, Hash, Lock
 } from 'lucide-react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -118,8 +118,10 @@ const getProductCode = (prospect, products) => {
   const p = prospect?.product || (prospect?.product_id && products?.find(pr => pr.id === prospect.product_id));
   if (!p) return null;
   const name = (p.name || '').toLowerCase().trim();
-  if (name.includes('iti') || name.includes('isolation')) return 'iti';
-  if (name.includes('pac') || name.includes('pompe') || name.includes('split')) return 'pac';
+  // ITI — y compris codes CEE : BAR-TH-174 (ITI murs int.), BAR-EN-101 (combles), BAR-EN-103 (planchers), BAR-EN-102 (ITE)
+  if (name.includes('iti') || name.includes('ite') || name.includes('isolation') || name.includes('174') || name.includes('101') || name.includes('102') || name.includes('103')) return 'iti';
+  // PAC — y compris codes CEE : BAR-TH-171 (PAC air/eau), BAR-TH-143 (solaire combi), BAR-TH-148 (CET)
+  if (name.includes('pac') || name.includes('pompe') || name.includes('split') || name.includes('171') || name.includes('143') || name.includes('148')) return 'pac';
   if (name.includes('led')) return 'led';
   return null;
 };
@@ -3331,7 +3333,10 @@ const SettingsModal = memo(({ open, onClose, installers, categories, statuses, p
   const instEditFields = [{key:'name',label:'Nom',type:'text'},{key:'zone',label:'Zone',type:'text'},{key:'phone',label:'Tél',type:'text'}];
   const catEditFields = [{key:'name',label:'Nom',type:'text'},{key:'color',label:'Couleur',type:'color'}];
   const statEditFields = [{key:'name',label:'Nom',type:'text'},{key:'color',label:'Couleur',type:'color'},{key:'is_final',label:'Final',type:'checkbox'}];
-  const prodEditFields = [{key:'name',label:'Nom',type:'text'},{key:'color',label:'Couleur',type:'color'}];
+  // Nom produit NON modifiable depuis l'UI — seule la couleur peut être changée.
+  // La détection du type produit (ITI/PAC/LED) dépend du nom (getProductCode), donc changer un nom
+  // casse toute la logique métier. Pour renommer un produit, modifier getProductCode() dans le code.
+  const prodEditFields = [{key:'color',label:'Couleur',type:'color'}];
   const srcEditFields = [{key:'name',label:'Nom',type:'text'},{key:'color',label:'Couleur',type:'color'}];
 
   return <Modal open={open} onClose={onClose} title="Paramètres" icon={Settings} size="lg">
@@ -3351,8 +3356,9 @@ const SettingsModal = memo(({ open, onClose, installers, categories, statuses, p
         {renderSList(statuses, deleteStatus, updateStatus, s=><div className="flex items-center gap-2 flex-1 min-w-0"><span className="w-3 h-3 rounded-full flex-shrink-0" style={{backgroundColor:s.color}}/><span className="text-white text-sm font-medium">{s.name}</span>{s.is_final&&<Badge color="#EF4444" small>Final</Badge>}</div>, statEditFields)}
       </div>}
       {tab==='products'&&<div className="space-y-3">
+        <div className="p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-lg text-xs text-amber-300 flex items-start gap-2"><AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5"/><span>Le <b>nom</b> d'un produit ne peut pas être modifié depuis l'interface (la détection ITI/PAC/LED dépend du nom). Pour renommer, contactez le développeur.</span></div>
         <div className="flex gap-2"><Input placeholder="Nom *" value={prodF.name} onChange={e=>setProdF(f=>({...f,name:e.target.value}))} className="flex-1"/><input type="color" value={prodF.color} onChange={e=>setProdF(f=>({...f,color:e.target.value}))} className="w-10 h-9 bg-slate-700 border border-slate-600 rounded-lg cursor-pointer"/><Btn variant="primary" size="sm" disabled={saving||!prodF.name} onClick={async()=>{if(await run(addProduct,prodF))setProdF({name:'',color:'#6B7280'});}}>{saving?<Loader2 className="w-3.5 h-3.5 animate-spin"/>:'+'}</Btn></div>
-        {renderSList(products, deleteProduct, updateProduct, p=><div className="flex items-center gap-2 flex-1 min-w-0"><span className="w-3 h-3 rounded-full flex-shrink-0" style={{backgroundColor:p.color}}/><span className="text-white text-sm font-medium">{p.name}</span></div>, prodEditFields)}
+        {renderSList(products, deleteProduct, updateProduct, p=><div className="flex items-center gap-2 flex-1 min-w-0"><span className="w-3 h-3 rounded-full flex-shrink-0" style={{backgroundColor:p.color}}/><span className="text-white text-sm font-medium">{p.name}</span><Lock className="w-3 h-3 text-slate-500" title="Nom verrouillé"/></div>, prodEditFields)}
       </div>}
       {tab==='sources'&&<div className="space-y-3">
         <div className="flex gap-2"><Input placeholder="Nom * (ex: Campagne Meta, Call Maroc...)" value={srcF.name} onChange={e=>setSrcF(f=>({...f,name:e.target.value}))} className="flex-1"/><input type="color" value={srcF.color} onChange={e=>setSrcF(f=>({...f,color:e.target.value}))} className="w-10 h-9 bg-slate-700 border border-slate-600 rounded-lg cursor-pointer"/><Btn variant="primary" size="sm" disabled={saving||!srcF.name} onClick={async()=>{if(await run(addSource,srcF))setSrcF({name:'',color:'#6B7280'});}}>{saving?<Loader2 className="w-3.5 h-3.5 animate-spin"/>:'+'}</Btn></div>
