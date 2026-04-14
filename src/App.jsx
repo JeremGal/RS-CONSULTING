@@ -153,6 +153,81 @@ const calcPacCommission = (categorie, zone) => {
   return null;
 };
 
+// Détermine si une combinaison ITI Jaune requiert un choix Option A / Option B
+const itiNeedsOption = (categorie, surfaceHabitable, surfaceIsoler) => {
+  if (categorie !== 'jaune') return false;
+  const h = Number(surfaceHabitable) || 0;
+  const i = Number(surfaceIsoler) || 0;
+  // Jaune 90-110 m² et -160 m² à isoler → Option A ou B
+  if (h >= 90 && h < 110 && i > 0 && i < 160) return true;
+  // Jaune 110-130 m² et +160 m² à isoler → Option A ou B
+  if (h >= 110 && h < 130 && i >= 160) return true;
+  return false;
+};
+
+// Commission et reste à charge ITI (BAR-TH-174) selon 22 règles
+const calcItiCommission = (categorie, surfaceHabitable, surfaceIsoler, option) => {
+  if (!categorie || !surfaceHabitable || !surfaceIsoler) return null;
+  const h = Number(surfaceHabitable);
+  const i = Number(surfaceIsoler);
+  if (h <= 0 || i <= 0) return null;
+  const isPlus = i >= 160; // +160 (≥) vs -160 (<)
+  const base = { telepro: 150, fournisseur: 100 };
+
+  // 🔵 BLEU — RAC 0 partout
+  if (categorie === 'bleu') {
+    if (h >= 60 && h < 90) return { ...base, rac: 0, admin: isPlus ? 1000 : 1200 };
+    if (h >= 90 && h < 110) return { ...base, rac: 0, admin: isPlus ? 1200 : 1500 };
+    if (h >= 110 && h < 130) return { ...base, rac: 0, admin: isPlus ? 1500 : 1800 };
+    if (h >= 130) return { ...base, rac: 0, admin: isPlus ? 1800 : 2000 };
+    return null;
+  }
+
+  // 🟡 JAUNE
+  if (categorie === 'jaune') {
+    if (h >= 60 && h < 90) {
+      if (isPlus) return { ...base, rac: 10 * i, admin: 800 };
+      return { ...base, rac: 1500, admin: 1000 };
+    }
+    if (h >= 90 && h < 110) {
+      if (isPlus) return { ...base, rac: 1500, admin: 1000 };
+      // -160 → Option A ou B
+      if (option === 'B') return { ...base, rac: 1000, admin: 1000 };
+      return { ...base, rac: 0, admin: 500 }; // défaut A
+    }
+    if (h >= 110 && h < 130) {
+      if (isPlus) {
+        // +160 → Option A ou B
+        if (option === 'B') return { ...base, rac: 1000, admin: 1000 };
+        return { ...base, rac: 0, admin: 500 }; // défaut A
+      }
+      return { ...base, rac: 0, admin: 1000 };
+    }
+    if (h >= 130) {
+      if (isPlus) return { ...base, rac: 0, admin: 1000 };
+      return { ...base, rac: 0, admin: 1200 };
+    }
+    return null;
+  }
+
+  // 🟣 VIOLET — RAC au m²
+  if (categorie === 'violet') {
+    if (h >= 60 && h < 90) return { ...base, rac: 30 * i, admin: 500 };
+    if (h >= 90 && h < 110) return { ...base, rac: 20 * i, admin: 500 };
+    if (h >= 110 && h < 130) return { ...base, rac: 15 * i, admin: 1000 };
+    if (h >= 130) return { ...base, rac: 15 * i, admin: 800 };
+    return null;
+  }
+
+  return null;
+};
+
+// Somme des 5 surfaces à isoler
+const sumSurfacesIsoler = (f) => {
+  const v = (k) => parseFloat(f[k]) || 0;
+  return v('surface_mur_interieur') + v('surface_mur_exterieur') + v('surface_fenetre') + v('surface_sous_sol') + v('surface_comble');
+};
+
 // Types de chauffage existant
 const typeChauffageOptions = [
   { value: 'pac_air_eau', label: 'PAC Air/Eau' },
@@ -1124,7 +1199,7 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
       setForm(prev => {
         const merged = { ...prospect };
         // Preserve values that exist in form but are null/undefined in prospect (RPC might not return all cols)
-        const protectedFields = ['nb_led','nb_led_reel','ca_previsionnel','ca_reel','surface','type_led','mode_pose','puissance_pac','nb_panneaux','notes_admin','source','source_id','closer_id','date_pose','nb_personnes_foyer','revenu_fiscal_ref','is_ile_de_france','categorie_aide','reste_a_charge','surface_sous_sol','surface_comble','surface_isoler_total','has_vmc','surface_habitable','surface_chauffer','zone_climatique','commission_pac','ballon_type','type_chauffage','date_audit','numero_fiscal','type_logement','type_projet','surface_batiment','surface_mur_interieur','surface_mur_exterieur','surface_fenetre','has_pac_split'];
+        const protectedFields = ['nb_led','nb_led_reel','ca_previsionnel','ca_reel','surface','type_led','mode_pose','puissance_pac','nb_panneaux','notes_admin','source','source_id','closer_id','date_pose','nb_personnes_foyer','revenu_fiscal_ref','is_ile_de_france','categorie_aide','reste_a_charge','surface_sous_sol','surface_comble','surface_isoler_total','has_vmc','surface_habitable','surface_chauffer','zone_climatique','commission_pac','commission_admin','commission_telepro','commission_fournisseur','iti_option','ballon_type','type_chauffage','date_audit','numero_fiscal','type_logement','type_projet','surface_batiment','surface_mur_interieur','surface_mur_exterieur','surface_fenetre','has_pac_split'];
         protectedFields.forEach(k => {
           if ((merged[k] === undefined || merged[k] === null) && prev[k] != null && prev[k] !== '') {
             merged[k] = prev[k];
@@ -1149,7 +1224,7 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
   const handleSave = async () => {
     clearTimeout(autoSaveTimer.current);
     const saveData = { ...form };
-    ['nb_led','nb_led_reel','ca_previsionnel','ca_reel','surface','puissance_pac','nb_panneaux','nb_personnes_foyer','revenu_fiscal_ref','reste_a_charge','surface_sous_sol','surface_comble','surface_isoler_total','surface_habitable','surface_chauffer','commission_pac','surface_batiment','surface_mur_interieur','surface_mur_exterieur','surface_fenetre'].forEach(k => {
+    ['nb_led','nb_led_reel','ca_previsionnel','ca_reel','surface','puissance_pac','nb_panneaux','nb_personnes_foyer','revenu_fiscal_ref','reste_a_charge','surface_sous_sol','surface_comble','surface_isoler_total','surface_habitable','surface_chauffer','commission_pac','commission_admin','commission_telepro','commission_fournisseur','surface_batiment','surface_mur_interieur','surface_mur_exterieur','surface_fenetre'].forEach(k => {
       if (saveData[k] !== null && saveData[k] !== undefined && saveData[k] !== '') saveData[k] = Number(saveData[k]);
     });
     // Auto-compute zone climatique from postal code
@@ -1157,17 +1232,25 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
       const zone = getZoneClimatique(saveData.postal_code);
       if (zone) saveData.zone_climatique = zone;
     }
-    // Auto-compute categorie_aide et surface_isoler_total
+    // Auto-compute categorie_aide et surface_isoler_total (somme des 5 surfaces à isoler)
     const cat = calcCategorieAide(saveData.nb_personnes_foyer, saveData.revenu_fiscal_ref, saveData.is_ile_de_france);
     if (cat) saveData.categorie_aide = cat;
-    const ss = parseFloat(saveData.surface_sous_sol) || 0;
-    const sc = parseFloat(saveData.surface_comble) || 0;
-    if (ss + sc > 0) saveData.surface_isoler_total = ss + sc;
-    // Auto-compute PAC commission (only for PAC products)
+    const totalIsoler = sumSurfacesIsoler(saveData);
+    if (totalIsoler > 0) saveData.surface_isoler_total = totalIsoler;
+    // Auto-compute commissions selon produit
     const pCode = getProductCode(prospect, products);
     if (pCode === 'pac' && cat && saveData.zone_climatique) {
       const pacCalc = calcPacCommission(cat, saveData.zone_climatique);
       if (pacCalc) { saveData.reste_a_charge = pacCalc.reste_a_charge; saveData.commission_pac = pacCalc.commission; }
+    }
+    if (pCode === 'iti' && cat && saveData.surface_habitable && totalIsoler > 0) {
+      const itiCalc = calcItiCommission(cat, saveData.surface_habitable, totalIsoler, saveData.iti_option || 'A');
+      if (itiCalc) {
+        saveData.reste_a_charge = itiCalc.rac;
+        saveData.commission_admin = itiCalc.admin;
+        saveData.commission_telepro = itiCalc.telepro;
+        saveData.commission_fournisseur = itiCalc.fournisseur;
+      }
     }
     lastSavedRef.current = { time: Date.now(), data: saveData };
     try { await onUpdate(prospect.id, saveData); refetchFull(); setEditing(false); } catch(e) { showAlert(e.message,'error'); }
@@ -1566,12 +1649,8 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
                   </div>
                   <div>
                     <label className="block text-xs text-slate-400 mb-1">Surface totale à isoler (m²)</label>
-                    <Input type="number" value={(() => {
-                      const ss = parseFloat(form.surface_sous_sol) || 0;
-                      const sc = parseFloat(form.surface_comble) || 0;
-                      return ss + sc > 0 ? ss + sc : (form.surface_isoler_total || '');
-                    })()} disabled className="w-full disabled:opacity-60 bg-slate-700/30" placeholder="Auto-calculé"/>
-                    {(parseFloat(form.surface_sous_sol) || 0) + (parseFloat(form.surface_comble) || 0) > 0 && <p className="text-[10px] text-emerald-400/70 mt-1">Sous-sol {form.surface_sous_sol || 0} m² + Comble {form.surface_comble || 0} m² = {(parseFloat(form.surface_sous_sol) || 0) + (parseFloat(form.surface_comble) || 0)} m²</p>}
+                    <Input type="number" value={(() => { const t = sumSurfacesIsoler(form); return t > 0 ? t : (form.surface_isoler_total || ''); })()} disabled className="w-full disabled:opacity-60 bg-slate-700/30" placeholder="Auto-calculé (somme des 5 surfaces)"/>
+                    {sumSurfacesIsoler(form) > 0 && <p className="text-[10px] text-emerald-400/70 mt-1">Mur int {form.surface_mur_interieur||0} + Mur ext {form.surface_mur_exterieur||0} + Fenêtre {form.surface_fenetre||0} + Sous-sol {form.surface_sous_sol||0} + Comble {form.surface_comble||0} = {sumSurfacesIsoler(form)} m²</p>}
                   </div>
                 </div>
                 {/* VMC / PAC Split */}
@@ -1601,6 +1680,46 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
                     <span className="text-sm text-slate-300">PAC / Split</span>
                   </label>
                 </div>
+                {/* ITI — Option A/B + Commissions auto */}
+                {(() => {
+                  const cat = computedCategorie || form.categorie_aide;
+                  const totalIsoler = sumSurfacesIsoler(form);
+                  const needsOption = itiNeedsOption(cat, form.surface_habitable, totalIsoler);
+                  const itiCalc = calcItiCommission(cat, form.surface_habitable, totalIsoler, form.iti_option || 'A');
+                  return <>
+                    {needsOption && <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3">
+                      <label className="block text-xs font-semibold text-amber-400 mb-2 uppercase tracking-wider">Option à choisir</label>
+                      <Select value={form.iti_option || 'A'} onChange={async e => {
+                        const val = e.target.value;
+                        const prev = form.iti_option;
+                        setForm(f => ({...f, iti_option: val}));
+                        const saveData = { iti_option: val };
+                        const newCalc = calcItiCommission(cat, form.surface_habitable, totalIsoler, val);
+                        if (newCalc) {
+                          saveData.reste_a_charge = newCalc.rac;
+                          saveData.commission_admin = newCalc.admin;
+                          saveData.commission_telepro = newCalc.telepro;
+                          saveData.commission_fournisseur = newCalc.fournisseur;
+                        }
+                        lastSavedRef.current = { time: Date.now(), data: saveData };
+                        try { await onUpdate(prospect.id, saveData); refetchFull(); } catch(err) { showAlert(err.message,'error'); setForm(f=>({...f, iti_option: prev})); }
+                      }} className="w-full">
+                        <option value="A">Option A (RAC 0 € / Admin 500 €)</option>
+                        <option value="B">Option B (RAC 1 000 € / Admin 1 000 €)</option>
+                      </Select>
+                    </div>}
+                    {itiCalc && <div className="bg-slate-800/50 rounded-xl p-3 space-y-2 border border-slate-700">
+                      <p className="text-xs font-semibold text-emerald-400 uppercase tracking-wider flex items-center gap-1"><Euro className="w-3 h-3"/> Calcul automatique</p>
+                      <div className="flex justify-between"><span className="text-xs text-slate-400">Reste à charge</span><span className="text-sm font-bold text-white">{itiCalc.rac.toLocaleString('fr-FR')} €</span></div>
+                      {isAdmin && <>
+                        <div className="flex justify-between"><span className="text-xs text-slate-400">Commission Admin</span><span className="text-sm font-bold text-emerald-400">{itiCalc.admin.toLocaleString('fr-FR')} €</span></div>
+                        <div className="flex justify-between"><span className="text-xs text-slate-400">Commission Télépro</span><span className="text-sm font-bold text-blue-400">{itiCalc.telepro.toLocaleString('fr-FR')} €</span></div>
+                        <div className="flex justify-between"><span className="text-xs text-slate-400">Commission Fournisseur</span><span className="text-sm font-bold text-amber-400">{itiCalc.fournisseur.toLocaleString('fr-FR')} €</span></div>
+                        <div className="pt-2 border-t border-slate-700 flex justify-between"><span className="text-xs font-semibold text-slate-300">Total commissions</span><span className="text-sm font-bold text-emerald-300">{(itiCalc.admin + itiCalc.telepro + itiCalc.fournisseur).toLocaleString('fr-FR')} €</span></div>
+                      </>}
+                    </div>}
+                  </>;
+                })()}
               </>;
               // ===== PRODUIT PAC =====
               if (pCode === 'pac') {
@@ -2009,8 +2128,18 @@ const StatsPage = memo(({ onBack, statuses, products, categories, counts, isAdmi
     let rows = caRows;
     if (filterProductId !== 'all') rows = rows.filter(r => r.product_id === filterProductId);
     if (filterUserId !== 'all') rows = rows.filter(r => (r.assigned_users && Array.isArray(r.assigned_users) ? r.assigned_users.includes(filterUserId) : (r.created_by === filterUserId || r.user_id === filterUserId)));
-    return rows;
-  }, [caRows, filterProductId, filterUserId]);
+    // Calcul du "gain" par dossier selon produit :
+    // LED → CA devis ; PAC → commission_pac ; ITI → total commissions (admin+telepro+fournisseur)
+    return rows.map(r => {
+      const prod = products.find(p => p.id === r.product_id);
+      const pCode = prod ? getProductCode({ product: prod }, products) : null;
+      let _gain = 0, _gainReel = 0;
+      if (pCode === 'pac') { _gain = r._commPac || 0; _gainReel = r._commPac || 0; }
+      else if (pCode === 'iti') { _gain = r._commIti || 0; _gainReel = r._commIti || 0; }
+      else { _gain = r._ca || 0; _gainReel = r._reel || 0; }
+      return { ...r, _gain, _gainReel, _pCode: pCode };
+    });
+  }, [caRows, filterProductId, filterUserId, products]);
 
   const periodStats = useMemo(() => {
     const inR = (r, b) => { const d = new Date(r.created_at); return d >= b.start && d <= b.end; };
@@ -2029,16 +2158,16 @@ const StatsPage = memo(({ onBack, statuses, products, categories, counts, isAdmi
         if (r.category_id) by_category[r.category_id] = (by_category[r.category_id] || 0) + 1;
         const sid = r.status_id || 'none';
         if (!caByStatus[sid]) caByStatus[sid] = { count: 0, sum: 0, sumReel: 0 };
-        if (r._ca > 0 || r._reel > 0) { caByStatus[sid].count++; caByStatus[sid].sum += r._ca; caByStatus[sid].sumReel += r._reel; caTotal += r._ca; caReel += r._reel; caCount++; }
+        if (r._gain > 0 || r._gainReel > 0) { caByStatus[sid].count++; caByStatus[sid].sum += r._gain; caByStatus[sid].sumReel += r._gainReel; caTotal += r._gain; caReel += r._gainReel; caCount++; }
         // CA by assigned user
         if (r.assigned_users && Array.isArray(r.assigned_users)) {
           r.assigned_users.forEach(uid => {
             if (!caByUser[uid]) caByUser[uid] = { ca: 0, reel: 0, count: 0 };
-            caByUser[uid].ca += r._ca || 0; caByUser[uid].reel += r._reel || 0; caByUser[uid].count++;
+            caByUser[uid].ca += r._gain || 0; caByUser[uid].reel += r._gainReel || 0; caByUser[uid].count++;
           });
         } else if (r.user_id) {
           if (!caByUser[r.user_id]) caByUser[r.user_id] = { ca: 0, reel: 0, count: 0 };
-          caByUser[r.user_id].ca += r._ca || 0; caByUser[r.user_id].reel += r._reel || 0; caByUser[r.user_id].count++;
+          caByUser[r.user_id].ca += r._gain || 0; caByUser[r.user_id].reel += r._gainReel || 0; caByUser[r.user_id].count++;
         }
       });
       return { total, clients, transmis, caTotal, caReel, caCount, by_status, by_product, by_category, caByStatus, caByUser };
@@ -2053,7 +2182,7 @@ const StatsPage = memo(({ onBack, statuses, products, categories, counts, isAdmi
       const d = new Date(r.created_at); d.setHours(0,0,0,0);
       const key = d.toISOString().slice(0,10);
       if (!tsMap[key]) tsMap[key] = { date: key, ca_prev: 0, ca_reel: 0, count: 0, newProspects: 0 };
-      if (r._ca > 0 || r._reel > 0) { tsMap[key].ca_prev += r._ca; tsMap[key].ca_reel += r._reel; tsMap[key].count++; }
+      if (r._gain > 0 || r._gainReel > 0) { tsMap[key].ca_prev += r._gain; tsMap[key].ca_reel += r._gainReel; tsMap[key].count++; }
       tsMap[key].newProspects++;
     });
 
@@ -2064,7 +2193,7 @@ const StatsPage = memo(({ onBack, statuses, products, categories, counts, isAdmi
     const sparkReel = last7.map(d => d.ca_reel);
     const sparkProspects = last7.map(d => d.newProspects);
 
-    const topProspects = [...periodRows].filter(r => r._ca > 0).sort((a,b) => b._ca - a._ca).slice(0, 8);
+    const topProspects = [...periodRows].filter(r => r._gain > 0).sort((a,b) => b._gain - a._gain).slice(0, 8);
 
     return { ...curr, prev, timeSeries: sorted, topProspects, allTotal: filteredCaRows.length, sparkCA, sparkReel, sparkProspects };
   }, [filteredCaRows, periodBounds, prevBounds]);
@@ -2442,7 +2571,7 @@ const StatsPage = memo(({ onBack, statuses, products, categories, counts, isAdmi
                   {st && <div className="flex items-center gap-1 mt-0.5"><span className="w-1.5 h-1.5 rounded-full" style={{backgroundColor:st.color}}/><span className="text-[10px] text-slate-500">{st.name}</span></div>}
                 </div>
                 <div className="text-right flex-shrink-0">
-                  <p className="text-yellow-400 font-bold text-sm">{p._ca.toLocaleString('fr-FR')} €</p>
+                  <p className="text-yellow-400 font-bold text-sm">{p._gain.toLocaleString('fr-FR')} €</p>
                   {p._reel > 0 && <p className="text-emerald-400 text-[10px]">{p._reel.toLocaleString('fr-FR')} € réel</p>}
                 </div>
                 <ChevronRight className="w-3.5 h-3.5 text-slate-700 group-hover:text-slate-500 transition-colors"/>
@@ -3098,16 +3227,27 @@ const ProspectModal = memo(({ open, onClose, onSubmit, categories, statuses, pro
     const submitData = { ...form };
     // Auto-compute zone climatique
     if (submitData.postal_code) { const z = getZoneClimatique(submitData.postal_code); if (z) submitData.zone_climatique = z; }
-    // Auto-compute categorie_aide et surface_isoler_total
+    // Auto-compute categorie_aide et surface_isoler_total (somme des 5 surfaces)
     const cat = calcCategorieAide(submitData.nb_personnes_foyer, submitData.revenu_fiscal_ref, submitData.is_ile_de_france);
     if (cat) submitData.categorie_aide = cat;
-    const ss = parseFloat(submitData.surface_sous_sol) || 0;
-    const sc = parseFloat(submitData.surface_comble) || 0;
-    if (ss + sc > 0) submitData.surface_isoler_total = ss + sc;
-    // Auto-compute PAC commission (only for PAC products)
+    const totalIsoler = sumSurfacesIsoler(submitData);
+    if (totalIsoler > 0) submitData.surface_isoler_total = totalIsoler;
+    // Auto-compute commissions selon produit
     const selProdForCalc = products.find(p => p.id === submitData.product_id);
     const pCodeForCalc = selProdForCalc ? getProductCode({ product: selProdForCalc }, products) : null;
-    if (pCodeForCalc === 'pac' && cat && submitData.zone_climatique) { const pc = calcPacCommission(cat, submitData.zone_climatique); if (pc) { submitData.reste_a_charge = pc.reste_a_charge; submitData.commission_pac = pc.commission; } }
+    if (pCodeForCalc === 'pac' && cat && submitData.zone_climatique) {
+      const pc = calcPacCommission(cat, submitData.zone_climatique);
+      if (pc) { submitData.reste_a_charge = pc.reste_a_charge; submitData.commission_pac = pc.commission; }
+    }
+    if (pCodeForCalc === 'iti' && cat && submitData.surface_habitable && totalIsoler > 0) {
+      const ic = calcItiCommission(cat, submitData.surface_habitable, totalIsoler, submitData.iti_option || 'A');
+      if (ic) {
+        submitData.reste_a_charge = ic.rac;
+        submitData.commission_admin = ic.admin;
+        submitData.commission_telepro = ic.telepro;
+        submitData.commission_fournisseur = ic.fournisseur;
+      }
+    }
     try { await onSubmit(submitData); }
     catch(e) { setErr(e.message||'Erreur lors de la création'); import.meta.env.DEV&&console.warn('ProspectModal submit error:', e); }
     finally { setSaving(false); }

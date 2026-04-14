@@ -233,7 +233,7 @@ export function useProspects() {
     ['assignedUsers','assignedUserIds','assignments','product','category','status','installer','closer','next_reminder','prospect_number'].forEach(k => delete insert[k]);
     Object.keys(insert).forEach(k => { if (insert[k] === '') insert[k] = null; });
     // Ensure numeric fields are proper numbers (not strings from inputs)
-    ['nb_led','nb_led_reel','ca_previsionnel','ca_reel','surface','puissance_pac','nb_panneaux','nb_personnes_foyer','revenu_fiscal_ref','reste_a_charge','commission_pac','surface_sous_sol','surface_comble','surface_isoler_total','surface_habitable','surface_chauffer','surface_batiment','surface_mur_interieur','surface_mur_exterieur','surface_fenetre'].forEach(k => {
+    ['nb_led','nb_led_reel','ca_previsionnel','ca_reel','surface','puissance_pac','nb_panneaux','nb_personnes_foyer','revenu_fiscal_ref','reste_a_charge','commission_pac','commission_admin','commission_telepro','commission_fournisseur','surface_sous_sol','surface_comble','surface_isoler_total','surface_habitable','surface_chauffer','surface_batiment','surface_mur_interieur','surface_mur_exterieur','surface_fenetre'].forEach(k => {
       if (insert[k] !== null && insert[k] !== undefined) { const n = Number(insert[k]); insert[k] = isNaN(n) ? null : n; }
     });
     log('INSERT prospect');
@@ -254,7 +254,7 @@ export function useProspects() {
     ['id','created_at','prospect_number','product','category','status','installer','assignments','assignedUsers','assignedUserIds','closer','next_reminder'].forEach(k => delete clean[k]);
     Object.keys(clean).forEach(k => { if (clean[k] === '') clean[k] = null; });
     // Ensure numeric fields are proper numbers (not strings from inputs)
-    ['nb_led','nb_led_reel','ca_previsionnel','ca_reel','surface','puissance_pac','nb_panneaux','nb_personnes_foyer','revenu_fiscal_ref','reste_a_charge','commission_pac','surface_sous_sol','surface_comble','surface_isoler_total','surface_habitable','surface_chauffer','surface_batiment','surface_mur_interieur','surface_mur_exterieur','surface_fenetre'].forEach(k => {
+    ['nb_led','nb_led_reel','ca_previsionnel','ca_reel','surface','puissance_pac','nb_panneaux','nb_personnes_foyer','revenu_fiscal_ref','reste_a_charge','commission_pac','commission_admin','commission_telepro','commission_fournisseur','surface_sous_sol','surface_comble','surface_isoler_total','surface_habitable','surface_chauffer','surface_batiment','surface_mur_interieur','surface_mur_exterieur','surface_fenetre'].forEach(k => {
       if (clean[k] !== null && clean[k] !== undefined) { const n = Number(clean[k]); clean[k] = isNaN(n) ? null : n; }
     });
     let prev;
@@ -340,6 +340,7 @@ export function useProspects() {
       ca_previsionnel: null, ca_reel: null, notes_admin: null,
       nb_personnes_foyer: null, revenu_fiscal_ref: null, is_ile_de_france: false,
       categorie_aide: null, reste_a_charge: null, commission_pac: null,
+      commission_admin: null, commission_telepro: null, commission_fournisseur: null, iti_option: null,
       surface_sous_sol: null, surface_comble: null, surface_isoler_total: null, has_vmc: false, has_pac_split: false,
       surface_habitable: null, surface_chauffer: null,
       zone_climatique: null, ballon_type: null, type_chauffage: null,
@@ -1160,9 +1161,15 @@ export function useDevisStats() {
     try {
       const { data, error } = await supabase
         .from('prospects')
-        .select('status_id, product_id, category_id, installer_id, ca_previsionnel, ca_reel, created_at, updated_at, is_client, transmis_installateur, created_by');
+        .select('status_id, product_id, category_id, installer_id, ca_previsionnel, ca_reel, commission_pac, commission_admin, commission_telepro, commission_fournisseur, created_at, updated_at, is_client, transmis_installateur, created_by');
       if (error) throw error;
-      setRows((data || []).map(r => ({ ...r, _ca: parseFloat(r.ca_previsionnel) || 0, _reel: parseFloat(r.ca_reel) || 0 })));
+      setRows((data || []).map(r => ({
+        ...r,
+        _ca: parseFloat(r.ca_previsionnel) || 0,
+        _reel: parseFloat(r.ca_reel) || 0,
+        _commPac: parseFloat(r.commission_pac) || 0,
+        _commIti: (parseFloat(r.commission_admin) || 0) + (parseFloat(r.commission_telepro) || 0) + (parseFloat(r.commission_fournisseur) || 0),
+      })));
     } catch (e) {
       warn('DevisStats error:', e);
     } finally {
