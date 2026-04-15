@@ -1880,7 +1880,7 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
               </div>
               {form.date_pose && <p className="text-xs text-emerald-400 mt-1 flex items-center gap-1"><CalendarCheck className="w-3 h-3"/> Pose prévue le {formatDateTime(form.date_pose)}</p>}
             </div>
-            {field("Notes admin", "notes_admin", "textarea")}
+            {isAdmin && field("Notes admin", "notes_admin", "textarea")}
           </div>
         </div>}
 
