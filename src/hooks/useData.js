@@ -1372,17 +1372,18 @@ export function usePresence(userId, userInfo) {
 
 /* ============================
    HOOK: useChat (realtime chat by channel)
+   Optimistic send + realtime INSERT dedup by id
    ============================ */
 export function useChat(channel) {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const { profile } = useAuth();
+  const messagesRef = useRef([]);
+  messagesRef.current = messages;
 
   const fetchMessages = useCallback(async () => {
     if (!profile || !channel) return;
-    setLoading(true);
     try {
-      // Essai avec join FK, sinon fallback sans join
       let data, error;
       try {
         const r = await supabase
@@ -1394,7 +1395,6 @@ export function useChat(channel) {
         data = r.data; error = r.error;
       } catch (e) { error = e; }
       if (error || !data) {
-        // Fallback : requête simple sans join, le composant peut résoudre les noms via allUsers
         const r2 = await supabase
           .from('chat_messages')
           .select('id, channel, user_id, content, created_at')
@@ -1413,38 +1413,190 @@ export function useChat(channel) {
     }
   }, [profile, channel]);
 
-  useEffect(() => { fetchMessages(); }, [fetchMessages]);
+  // Initial load: reset messages + show loading when channel changes
+  useEffect(() => {
+    setMessages([]);
+    setLoading(true);
+    fetchMessages();
+  }, [fetchMessages]);
 
-  // Realtime subscription
+  // Realtime subscription — append directly on INSERT (no refetch) to avoid race
   useEffect(() => {
     if (!profile || !channel) return;
-    let debounce = null;
-    const ch = supabase.channel(`chat_${channel}`)
+    const ch = supabase.channel(`chat_${channel}_${profile.id}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `channel=eq.${channel}` }, payload => {
-        // Immediate optimistic insert with profile data
-        clearTimeout(debounce);
-        debounce = setTimeout(fetchMessages, 300);
+        const newRow = payload.new;
+        if (!newRow) return;
+        setMessages(prev => {
+          // Dedup by id (in case we already added it optimistically)
+          if (prev.some(m => m.id === newRow.id)) return prev;
+          // Try to attach profile if we have it (self)
+          const withProfile = newRow.user_id === profile.id
+            ? { ...newRow, profile: { id: profile.id, first_name: profile.first_name, last_name: profile.last_name, role: profile.role } }
+            : newRow;
+          return [...prev, withProfile];
+        });
+        // If message is from someone else and profile join is missing, refetch quickly for the profile info
+        if (newRow.user_id !== profile.id && !newRow.profile) {
+          setTimeout(() => {
+            supabase.from('chat_messages').select('*, profile:profiles(id, first_name, last_name, role)').eq('id', newRow.id).single()
+              .then(({ data }) => {
+                if (data) setMessages(prev => prev.map(m => m.id === data.id ? data : m));
+              }).catch(() => {});
+          }, 200);
+        }
       })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'chat_messages' }, () => {
-        clearTimeout(debounce);
-        debounce = setTimeout(fetchMessages, 300);
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'chat_messages' }, payload => {
+        const delId = payload.old?.id;
+        if (delId) setMessages(prev => prev.filter(m => m.id !== delId));
       })
       .subscribe();
-    return () => { clearTimeout(debounce); supabase.removeChannel(ch); };
-  }, [profile, channel, fetchMessages]);
+    return () => { supabase.removeChannel(ch); };
+  }, [profile, channel]);
 
   const sendMessage = useCallback(async (content) => {
     if (!profile || !content.trim()) return;
-    const { error } = await supabase.from('chat_messages').insert([{
-      channel, user_id: profile.id, content: content.trim()
-    }]);
-    if (error) throw error;
+    const clean = content.trim();
+    // Optimistic: insert with temp id immediately
+    const tempId = `temp_${crypto.randomUUID()}`;
+    const optimistic = {
+      id: tempId,
+      channel,
+      user_id: profile.id,
+      content: clean,
+      created_at: new Date().toISOString(),
+      profile: { id: profile.id, first_name: profile.first_name, last_name: profile.last_name, role: profile.role },
+      _pending: true
+    };
+    setMessages(prev => [...prev, optimistic]);
+    try {
+      const { data, error } = await supabase.from('chat_messages').insert([{
+        channel, user_id: profile.id, content: clean
+      }]).select('*, profile:profiles(id, first_name, last_name, role)').single();
+      if (error) throw error;
+      // Replace temp row with real row from server
+      setMessages(prev => {
+        // If realtime already added the real row, just remove the temp one
+        if (prev.some(m => m.id === data.id)) return prev.filter(m => m.id !== tempId);
+        return prev.map(m => m.id === tempId ? data : m);
+      });
+    } catch (e) {
+      // Rollback optimistic on error
+      setMessages(prev => prev.filter(m => m.id !== tempId));
+      throw e;
+    }
   }, [profile, channel]);
 
   const deleteMessage = useCallback(async (id) => {
-    const { error } = await supabase.from('chat_messages').delete().eq('id', id);
-    if (error) throw error;
+    // Optimistic remove
+    let snapshot;
+    setMessages(prev => { snapshot = prev; return prev.filter(m => m.id !== id); });
+    try {
+      const { error } = await supabase.from('chat_messages').delete().eq('id', id);
+      if (error) throw error;
+    } catch (e) {
+      if (snapshot) setMessages(snapshot);
+      throw e;
+    }
   }, []);
 
   return { messages, loading, sendMessage, deleteMessage, refresh: fetchMessages };
+}
+
+/* ============================
+   HOOK: useUnreadChat — global unread counts per channel
+   Tracks last-read timestamps per channel in localStorage
+   Updates via realtime on chat_messages INSERT (any channel)
+   ============================ */
+const CHAT_CHANNELS = ['general', 'iti', 'pac'];
+const LS_KEY = 'rs_chat_last_read_v1';
+
+function readLastRead() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return {};
+    return JSON.parse(raw) || {};
+  } catch { return {}; }
+}
+function writeLastRead(obj) {
+  try { localStorage.setItem(LS_KEY, JSON.stringify(obj || {})); } catch {}
+}
+
+export function useUnreadChat() {
+  const { profile } = useAuth();
+  const [unread, setUnread] = useState({ general: 0, iti: 0, pac: 0 });
+  const [lastMessageAt, setLastMessageAt] = useState(null); // Used by consumers for "ping" animations
+  const [pingKey, setPingKey] = useState(0); // increments every time a new message from someone else arrives
+  const lastReadRef = useRef(readLastRead());
+
+  const recompute = useCallback(async () => {
+    if (!profile) return;
+    const lr = lastReadRef.current || {};
+    const out = { general: 0, iti: 0, pac: 0 };
+    try {
+      // Parallel count queries per channel
+      const results = await Promise.all(CHAT_CHANNELS.map(async ch => {
+        const since = lr[ch] || '1970-01-01T00:00:00Z';
+        const { count, error } = await supabase
+          .from('chat_messages')
+          .select('id', { count: 'exact', head: true })
+          .eq('channel', ch)
+          .gt('created_at', since)
+          .neq('user_id', profile.id);
+        if (error) return { ch, count: 0 };
+        return { ch, count: count || 0 };
+      }));
+      results.forEach(r => { out[r.ch] = r.count; });
+      setUnread(out);
+    } catch(e) {
+      if (import.meta.env.DEV) console.warn('useUnreadChat recompute error:', e);
+    }
+  }, [profile]);
+
+  useEffect(() => { recompute(); }, [recompute]);
+
+  // Realtime: listen to every new chat message, bump unread for channel if from someone else
+  useEffect(() => {
+    if (!profile) return;
+    const ch = supabase.channel(`chat_unread_${profile.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, payload => {
+        const row = payload.new;
+        if (!row || !row.channel) return;
+        if (row.user_id === profile.id) return; // our own message
+        const lr = lastReadRef.current || {};
+        const since = lr[row.channel] || '1970-01-01T00:00:00Z';
+        if (new Date(row.created_at) > new Date(since)) {
+          setUnread(prev => ({ ...prev, [row.channel]: (prev[row.channel] || 0) + 1 }));
+          setLastMessageAt(row.created_at);
+          setPingKey(k => k + 1);
+        }
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'chat_messages' }, () => {
+        recompute();
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [profile, recompute]);
+
+  const markRead = useCallback((channel) => {
+    if (!channel) return;
+    const now = new Date().toISOString();
+    const lr = { ...(lastReadRef.current || {}), [channel]: now };
+    lastReadRef.current = lr;
+    writeLastRead(lr);
+    setUnread(prev => ({ ...prev, [channel]: 0 }));
+  }, []);
+
+  const markAllRead = useCallback(() => {
+    const now = new Date().toISOString();
+    const lr = { ...(lastReadRef.current || {}) };
+    CHAT_CHANNELS.forEach(c => { lr[c] = now; });
+    lastReadRef.current = lr;
+    writeLastRead(lr);
+    setUnread({ general: 0, iti: 0, pac: 0 });
+  }, []);
+
+  const total = (unread.general || 0) + (unread.iti || 0) + (unread.pac || 0);
+
+  return { unread, total, markRead, markAllRead, lastMessageAt, pingKey, refresh: recompute };
 }

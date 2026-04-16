@@ -19,7 +19,7 @@ import {
   useProspects, useCounts, useReferenceData, useNotes, useDocuments, useReminders,
   useActivityLog, useMapData, useSiretLookup, useAddressSearch, useUserStats, useDiagnostic,
   usePlanning, useDevisStats, useSites, logEnhanced, useGlobalTimeline, useAlerts, usePresence,
-  useChat
+  useChat, useUnreadChat
 } from './hooks/useData';
 
 // =====================================================
@@ -508,6 +508,8 @@ const MainApp = memo(({ themeBtn }) => {
   const { markers } = useMapData(params);
   const { results: diagResults, runDiagnostic } = useDiagnostic();
   const onlineUsers = usePresence(profile?.id, profile);
+  const unreadChat = useUnreadChat();
+  const [chatToast, setChatToast] = useState(null); // { channel, pingKey }
 
   const [view, setView] = useState('list');
   const [mainView, setMainView] = useState('table');
@@ -633,6 +635,41 @@ const MainApp = memo(({ themeBtn }) => {
   }, [reminders]);
 
   const dismissNotif = useCallback(id => setActiveNotifs(prev => prev.filter(n => n.id !== id)), []);
+
+  // Chat toast: show ephemeral notification when a new chat message arrives (and user isn't currently in chat view/panel)
+  const prevPingKeyRef = useRef(0);
+  useEffect(() => {
+    if (!unreadChat.pingKey || unreadChat.pingKey === prevPingKeyRef.current) return;
+    prevPingKeyRef.current = unreadChat.pingKey;
+    // Only toast if user isn't already viewing chat page
+    if (view === 'chat') return;
+    // Pick the channel with latest increase (first non-zero)
+    const u = unreadChat.unread || {};
+    const ch = ['general','iti','pac'].find(c => (u[c]||0) > 0) || 'general';
+    setChatToast({ channel: ch, key: unreadChat.pingKey });
+    // Auto-dismiss after 5s
+    const t = setTimeout(() => setChatToast(null), 5000);
+    // Play soft beep (optional, best-effort)
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtx) {
+        const ctx = new AudioCtx();
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.type = 'sine'; o.frequency.value = 880;
+        g.gain.value = 0.04;
+        o.connect(g); g.connect(ctx.destination);
+        o.start();
+        o.stop(ctx.currentTime + 0.12);
+        setTimeout(() => ctx.close(), 250);
+      }
+    } catch {}
+    // Browser notification if permitted & tab hidden
+    if ('Notification' in window && Notification.permission === 'granted' && document.hidden) {
+      try { new Notification('💬 Nouveau message', { body: `Nouveau message dans #${ch}`, icon: logoUrl, tag: `chat-${ch}` }); } catch {}
+    }
+    return () => clearTimeout(t);
+  }, [unreadChat.pingKey, unreadChat.unread, view]);
   const handleNotifGoTo = useCallback((r) => {
     if (r.prospect_id) {
       setSpId(r.prospect_id);
@@ -694,12 +731,12 @@ const MainApp = memo(({ themeBtn }) => {
     <DetailPage prospect={selectedProspect} onClose={closeProspect} onUpdate={handleUpdate} onDelete={handleDelete}
       onDuplicate={handleDuplicate} onAssign={handleAssign} onUnassign={handleUnassign}
       categories={categories} statuses={statuses} products={products} installers={installers} sources={sources}
-      users={activeUsers} isAdmin={isAdmin} userRole={profile?.role} onlineUsers={onlineUsers} showAlert={showAlert} onQuickStatus={handleQuickStatus}/>
+      users={activeUsers} isAdmin={isAdmin} userRole={profile?.role} onlineUsers={onlineUsers} showAlert={showAlert} onQuickStatus={handleQuickStatus} unreadChat={unreadChat}/>
   </>;
   if (view==='stats' && isAdmin) return <><Alert alert={alert} onClose={clearAlert}/><StatsPage onBack={()=>setView('list')} statuses={statuses} products={products} categories={categories} counts={counts} isAdmin={isAdmin} allUsers={users} onOpenProspect={openProspect} onlineUsers={onlineUsers}/></>;
   if (view==='activity') return <><Alert alert={alert} onClose={clearAlert}/><ActivityPage onBack={()=>setView('list')}/></>;
   if (view==='planning') return <><Alert alert={alert} onClose={clearAlert}/><PlanningPage onBack={()=>setView('list')} onOpenProspect={openProspect} reminders={reminders} isAdmin={isAdmin}/></>;
-  if (view==='chat') return <><Alert alert={alert} onClose={clearAlert}/><ChatPage onBack={()=>setView('list')} allUsers={users} onlineUsers={onlineUsers}/></>;
+  if (view==='chat') return <><Alert alert={alert} onClose={clearAlert}/><ChatPage onBack={()=>setView('list')} allUsers={users} onlineUsers={onlineUsers} unreadChat={unreadChat}/></>;
 
   // === MAIN LIST VIEW ===
   return (
@@ -731,6 +768,23 @@ const MainApp = memo(({ themeBtn }) => {
             </div>
           </div>;
         })}
+      </div>}
+
+      {/* Chat toast — new message arrived */}
+      {chatToast && <div className="fixed bottom-4 right-4 z-[210] max-w-sm animate-pulse-once">
+        <button onClick={()=>{ setChatToast(null); setView('chat'); }} className="w-full text-left bg-slate-800 border border-emerald-500/50 rounded-xl shadow-2xl shadow-emerald-500/20 p-4 hover:bg-slate-700/80 transition-colors">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-emerald-500">
+              <MessageSquare className="w-5 h-5 text-white"/>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-white font-semibold text-sm">💬 Nouveau message</p>
+              <p className="text-slate-300 text-xs mt-0.5">Salon <span className="text-emerald-400 font-medium">#{chatToast.channel}</span></p>
+              <p className="text-emerald-400 text-[11px] mt-1">Clique pour ouvrir le chat</p>
+            </div>
+            <span onClick={(e)=>{e.stopPropagation(); setChatToast(null);}} className="p-1 hover:bg-slate-700 rounded text-slate-400 cursor-pointer"><X className="w-4 h-4"/></span>
+          </div>
+        </button>
       </div>}
 
       {/* Mobile overlay */}
@@ -865,7 +919,10 @@ const MainApp = memo(({ themeBtn }) => {
               {isAdmin&&<Btn icon={Upload} size="sm" onClick={()=>setModal('import')}>Import</Btn>}
               {isAdmin&&<Btn icon={BarChart3} size="sm" onClick={()=>setView('stats')}>Stats</Btn>}
               <Btn icon={CalendarDays} size="sm" onClick={()=>setView('planning')}>Planning</Btn>
-              <Btn icon={MessageSquare} size="sm" onClick={()=>setView('chat')}>Chat</Btn>
+              <div className="relative">
+                <Btn icon={MessageSquare} size="sm" onClick={()=>setView('chat')}>Chat</Btn>
+                {unreadChat.total>0 && <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-red-500 rounded-full text-[10px] text-white flex items-center justify-center font-bold animate-pulse pointer-events-none">{unreadChat.total>99?'99+':unreadChat.total}</span>}
+              </div>
               <div className="relative"><Btn icon={Bell} variant="ghost" size="sm" onClick={()=>setModal('reminders')}/>{overdueCount>0&&<span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-[10px] text-white flex items-center justify-center font-bold animate-pulse">{overdueCount}</span>}</div>
               {isAdmin&&<Btn icon={History} variant="ghost" size="sm" onClick={()=>setView('activity')}/>}
               {isAdmin&&<Btn icon={Users} variant="ghost" size="sm" onClick={()=>setModal('users')}/>}
@@ -1140,7 +1197,7 @@ const BuildingCard = memo(({ building, index, onUpdate, onDelete, showAlert }) =
 // =====================================================
 // DETAIL PAGE
 // =====================================================
-const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, onDuplicate, onAssign, onUnassign, categories, statuses, products, installers, sources, users, isAdmin, userRole, onlineUsers, showAlert, onQuickStatus }) => {
+const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, onDuplicate, onAssign, onUnassign, categories, statuses, products, installers, sources, users, isAdmin, userRole, onlineUsers, showAlert, onQuickStatus, unreadChat }) => {
   const [showChatPanel, setShowChatPanel] = useState(false);
   // Fetch full prospect directly (RPC might not return all columns like nb_led)
   const [fullProspect, setFullProspect] = useState(null);
@@ -1369,7 +1426,10 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
               <Btn size="sm" onClick={()=>{setForm(prospect);setEditing(false);}}>Annuler</Btn>
               <Btn size="sm" variant="primary" icon={Save} onClick={handleSave}>Enregistrer</Btn>
             </> : <>
-              <Btn size="sm" variant="ghost" icon={MessageSquare} onClick={()=>setShowChatPanel(true)} title="Chat équipe">Chat</Btn>
+              <div className="relative">
+                <Btn size="sm" variant="ghost" icon={MessageSquare} onClick={()=>setShowChatPanel(true)} title="Chat équipe">Chat</Btn>
+                {unreadChat?.total>0 && <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-red-500 rounded-full text-[10px] text-white flex items-center justify-center font-bold animate-pulse">{unreadChat.total>99?'99+':unreadChat.total}</span>}
+              </div>
               {isAdmin&&<Btn size="sm" variant="ghost" icon={Copy} onClick={()=>onDuplicate(prospect)}/>}
               <Btn size="sm" icon={Edit} onClick={()=>setEditing(true)}>Modifier</Btn>
               {isAdmin&&<Btn size="sm" variant="ghost" onClick={()=>onDelete(prospect.id)}><Trash2 className="w-4 h-4 text-red-400"/></Btn>}
@@ -2009,7 +2069,7 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
         </div>}
       </div>
       {/* Chat équipe — panneau latéral */}
-      {showChatPanel && <ChatSidePanel onClose={()=>setShowChatPanel(false)} allUsers={users} onlineUsers={onlineUsers}/>}
+      {showChatPanel && <ChatSidePanel onClose={()=>setShowChatPanel(false)} allUsers={users} onlineUsers={onlineUsers} unreadChat={unreadChat}/>}
     </div>
   );
 });
@@ -2017,14 +2077,26 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
 // =====================================================
 // CHAT SIDE PANEL — slide-over réutilisable depuis n'importe quelle page
 // =====================================================
-const ChatSidePanel = memo(({ onClose, allUsers, onlineUsers }) => {
-  const [activeChannel, setActiveChannel] = useState('general');
+const ChatSidePanel = memo(({ onClose, allUsers, onlineUsers, unreadChat }) => {
+  // Open on the channel that has the most unread messages, if any
+  const initialChannel = (() => {
+    const u = unreadChat?.unread || {};
+    const maxCh = Object.keys(u).reduce((a,b) => (u[a]||0) >= (u[b]||0) ? a : b, 'general');
+    return (u[maxCh] || 0) > 0 ? maxCh : 'general';
+  })();
+  const [activeChannel, setActiveChannel] = useState(initialChannel);
   const { messages, loading, sendMessage, deleteMessage } = useChat(activeChannel);
   const [msg, setMsg] = useState('');
   const [sending, setSending] = useState(false);
   const endRef = useRef(null);
   const { profile } = useAuth();
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+  // Mark channel as read whenever it becomes active (and on initial mount)
+  useEffect(() => { unreadChat?.markRead?.(activeChannel); }, [activeChannel, unreadChat]);
+  // Also mark as read whenever new messages arrive while panel is open on this channel
+  useEffect(() => {
+    if (messages.length > 0) unreadChat?.markRead?.(activeChannel);
+    endRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, activeChannel, unreadChat]);
   const handleSend = async () => {
     if (!msg.trim() || sending) return;
     setSending(true);
@@ -2044,7 +2116,13 @@ const ChatSidePanel = memo(({ onClose, allUsers, onlineUsers }) => {
         <button onClick={onClose} className="p-1.5 hover:bg-slate-800 rounded text-slate-400"><X className="w-4 h-4"/></button>
       </div>
       <div className="px-4 py-2 border-b border-slate-700 flex gap-1.5">
-        {channels.map(ch => <button key={ch.id} onClick={()=>setActiveChannel(ch.id)} className={cn("px-2.5 py-1 rounded text-xs font-medium transition-colors", activeChannel===ch.id?"bg-slate-700 text-white":"text-slate-400 hover:text-white")} style={activeChannel===ch.id?{borderBottom:`2px solid ${ch.color}`}:{}}># {ch.label}</button>)}
+        {channels.map(ch => {
+          const cnt = unreadChat?.unread?.[ch.id] || 0;
+          return <button key={ch.id} onClick={()=>setActiveChannel(ch.id)} className={cn("relative px-2.5 py-1 rounded text-xs font-medium transition-colors", activeChannel===ch.id?"bg-slate-700 text-white":"text-slate-400 hover:text-white")} style={activeChannel===ch.id?{borderBottom:`2px solid ${ch.color}`}:{}}>
+            # {ch.label}
+            {cnt>0 && activeChannel!==ch.id && <span className="ml-1 inline-flex items-center justify-center min-w-[16px] h-4 px-1 bg-red-500 rounded-full text-[9px] text-white font-bold">{cnt>99?'99+':cnt}</span>}
+          </button>;
+        })}
       </div>
       <div className="flex-1 overflow-auto px-4 py-3 space-y-1">
         {loading && <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 text-emerald-400 animate-spin"/></div>}
@@ -3181,15 +3259,25 @@ const ActivityPage = memo(({ onBack }) => {
 // =====================================================
 // CHAT PAGE
 // =====================================================
-const ChatPage = memo(({ onBack, allUsers, onlineUsers }) => {
-  const [activeChannel, setActiveChannel] = useState('iti');
+const ChatPage = memo(({ onBack, allUsers, onlineUsers, unreadChat }) => {
+  // Default channel: the one with the most unread, else iti
+  const initialChannel = (() => {
+    const u = unreadChat?.unread || {};
+    const maxCh = Object.keys(u).reduce((a,b) => (u[a]||0) >= (u[b]||0) ? a : b, 'iti');
+    return (u[maxCh] || 0) > 0 ? maxCh : 'iti';
+  })();
+  const [activeChannel, setActiveChannel] = useState(initialChannel);
   const { messages, loading, sendMessage, deleteMessage } = useChat(activeChannel);
   const [msg, setMsg] = useState('');
   const [sending, setSending] = useState(false);
   const endRef = useRef(null);
   const { profile } = useAuth();
 
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+  useEffect(() => { unreadChat?.markRead?.(activeChannel); }, [activeChannel, unreadChat]);
+  useEffect(() => {
+    if (messages.length > 0) unreadChat?.markRead?.(activeChannel);
+    endRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, activeChannel, unreadChat]);
 
   const handleSend = async () => {
     if (!msg.trim() || sending) return;
@@ -3223,9 +3311,11 @@ const ChatPage = memo(({ onBack, allUsers, onlineUsers }) => {
         <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider px-2 mb-1">Salons</p>
         {channels.map(ch => {
           const ChIcon = ch.icon;
+          const cnt = unreadChat?.unread?.[ch.id] || 0;
           return <button key={ch.id} onClick={() => setActiveChannel(ch.id)} className={cn("flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-all", activeChannel === ch.id ? "bg-emerald-500/15 text-emerald-400 shadow-sm" : "text-slate-400 hover:text-white hover:bg-slate-700/50")}>
             <ChIcon className="w-4 h-4" style={{ color: activeChannel === ch.id ? ch.color : undefined }}/>
-            <span>{ch.label}</span>
+            <span className="flex-1 text-left">{ch.label}</span>
+            {cnt>0 && activeChannel!==ch.id && <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 bg-red-500 rounded-full text-[10px] text-white font-bold">{cnt>99?'99+':cnt}</span>}
           </button>;
         })}
         <div className="flex-1"/>
