@@ -1896,10 +1896,24 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
               if (pCode === 'destrat_tertiaire') return <>
                 <div className="bg-violet-500/10 border border-violet-500/30 rounded-xl p-3 space-y-3">
                   <p className="text-xs font-semibold text-violet-400 uppercase tracking-wider flex items-center gap-1"><Zap className="w-3 h-3"/> Critères d'éligibilité — Destrat. tertiaire</p>
-                  {field("Hauteur sous plafond (m)", "hauteur_sous_plafond", "number")}
-                  {form.hauteur_sous_plafond && parseFloat(form.hauteur_sous_plafond) < 5 && <p className="text-[11px] text-red-400 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> Minimum 5m requis</p>}
                   <div>
-                    <label className="block text-xs text-slate-400 mb-1">Type de chauffage (gaz ou fuel obligatoire)</label>
+                    <label className="block text-xs text-slate-400 mb-1">Bâtiment chauffé ?</label>
+                    <Select value={form.batiment_chauffe||''} onChange={async e => {
+                      const val = e.target.value || null;
+                      const prev = form.batiment_chauffe;
+                      setForm(f=>({...f,batiment_chauffe:val}));
+                      lastSavedRef.current = { time: Date.now(), data: { batiment_chauffe: val } };
+                      try { await onUpdate(prospect.id, { batiment_chauffe: val }); refetchFull(); } catch(err) { showAlert(err.message,'error'); setForm(f=>({...f,batiment_chauffe:prev})); }
+                    }} className="w-full">
+                      <option value="">— Sélectionner —</option>
+                      <option value="oui_totalite">Oui, la totalité du site</option>
+                      <option value="oui_partiellement">Oui, partiellement</option>
+                      <option value="non">Non</option>
+                    </Select>
+                    {form.batiment_chauffe === 'non' && <p className="text-[11px] text-red-400 mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> Le bâtiment doit être chauffé</p>}
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">Mode de chauffage (gaz ou fuel obligatoire)</label>
                     <Select value={form.type_chauffage||''} onChange={async e => {
                       const val = e.target.value || null;
                       const prev = form.type_chauffage;
@@ -1908,13 +1922,28 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
                       try { await onUpdate(prospect.id, { type_chauffage: val }); refetchFull(); } catch(err) { showAlert(err.message,'error'); setForm(f=>({...f,type_chauffage:prev})); }
                     }} className="w-full">
                       <option value="">— Sélectionner —</option>
-                      <option value="gaz">Gaz</option>
-                      <option value="fuel">Fuel</option>
+                      <option value="gaz">Chaudière à Gaz</option>
+                      <option value="fuel">Chaudière à Fuel</option>
                     </Select>
                     {form.type_chauffage && form.type_chauffage !== 'gaz' && form.type_chauffage !== 'fuel' && <p className="text-[11px] text-red-400 mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> Gaz ou Fuel obligatoire</p>}
                   </div>
-                  {field("Puissance de chauffage (kW)", "puissance_chauffage", "number")}
+                  {field("Puissance totale du chauffage (kW)", "puissance_chauffage", "number")}
                   {form.puissance_chauffage && parseFloat(form.puissance_chauffage) < 200 && <p className="text-[11px] text-red-400 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> Minimum 200 kW requis</p>}
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">Chaudière remplacée depuis 2017 ?</label>
+                    <Select value={form.chaudiere_remplacee_2017 ? 'true' : 'false'} onChange={async e => {
+                      const val = e.target.value === 'true';
+                      const prev = form.chaudiere_remplacee_2017;
+                      setForm(f=>({...f,chaudiere_remplacee_2017:val}));
+                      lastSavedRef.current = { time: Date.now(), data: { chaudiere_remplacee_2017: val } };
+                      try { await onUpdate(prospect.id, { chaudiere_remplacee_2017: val }); refetchFull(); } catch(err) { showAlert(err.message,'error'); setForm(f=>({...f,chaudiere_remplacee_2017:prev})); }
+                    }} className="w-full">
+                      <option value="false">Non</option>
+                      <option value="true">Oui</option>
+                    </Select>
+                  </div>
+                  {field("Hauteur sous plafond (m)", "hauteur_sous_plafond", "number")}
+                  {form.hauteur_sous_plafond && parseFloat(form.hauteur_sous_plafond) < 5 && <p className="text-[11px] text-red-400 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> Minimum 5m requis</p>}
                   {field("Surface bâtiment (m²)", "surface_batiment", "number")}
                 </div>
                 {isAdmin && <div className="grid grid-cols-2 gap-3">{field("CA Prévisionnel (€)", "ca_previsionnel", "number")}{field("CA Réel (€)", "ca_reel", "number")}</div>}
@@ -1923,10 +1952,24 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
               if (pCode === 'destrat_industriel') return <>
                 <div className="bg-indigo-500/10 border border-indigo-500/30 rounded-xl p-3 space-y-3">
                   <p className="text-xs font-semibold text-indigo-400 uppercase tracking-wider flex items-center gap-1"><Zap className="w-3 h-3"/> Critères d'éligibilité — Destrat. industriel</p>
-                  {field("Hauteur sous plafond (m)", "hauteur_sous_plafond", "number")}
-                  {form.hauteur_sous_plafond && parseFloat(form.hauteur_sous_plafond) < 5 && <p className="text-[11px] text-red-400 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> Minimum 5m requis</p>}
                   <div>
-                    <label className="block text-xs text-slate-400 mb-1">Type de chauffage (gaz ou fuel obligatoire)</label>
+                    <label className="block text-xs text-slate-400 mb-1">Bâtiment chauffé ?</label>
+                    <Select value={form.batiment_chauffe||''} onChange={async e => {
+                      const val = e.target.value || null;
+                      const prev = form.batiment_chauffe;
+                      setForm(f=>({...f,batiment_chauffe:val}));
+                      lastSavedRef.current = { time: Date.now(), data: { batiment_chauffe: val } };
+                      try { await onUpdate(prospect.id, { batiment_chauffe: val }); refetchFull(); } catch(err) { showAlert(err.message,'error'); setForm(f=>({...f,batiment_chauffe:prev})); }
+                    }} className="w-full">
+                      <option value="">— Sélectionner —</option>
+                      <option value="oui_totalite">Oui, la totalité du site</option>
+                      <option value="oui_partiellement">Oui, partiellement</option>
+                      <option value="non">Non</option>
+                    </Select>
+                    {form.batiment_chauffe === 'non' && <p className="text-[11px] text-red-400 mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> Le bâtiment doit être chauffé</p>}
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">Mode de chauffage (gaz ou fuel obligatoire)</label>
                     <Select value={form.type_chauffage||''} onChange={async e => {
                       const val = e.target.value || null;
                       const prev = form.type_chauffage;
@@ -1935,13 +1978,28 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
                       try { await onUpdate(prospect.id, { type_chauffage: val }); refetchFull(); } catch(err) { showAlert(err.message,'error'); setForm(f=>({...f,type_chauffage:prev})); }
                     }} className="w-full">
                       <option value="">— Sélectionner —</option>
-                      <option value="gaz">Gaz</option>
-                      <option value="fuel">Fuel</option>
+                      <option value="gaz">Chaudière à Gaz</option>
+                      <option value="fuel">Chaudière à Fuel</option>
                     </Select>
                     {form.type_chauffage && form.type_chauffage !== 'gaz' && form.type_chauffage !== 'fuel' && <p className="text-[11px] text-red-400 mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> Gaz ou Fuel obligatoire</p>}
                   </div>
-                  {field("Puissance de chauffage (kW)", "puissance_chauffage", "number")}
+                  {field("Puissance totale du chauffage (kW)", "puissance_chauffage", "number")}
                   {form.puissance_chauffage && parseFloat(form.puissance_chauffage) < 400 && <p className="text-[11px] text-red-400 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> Minimum 400 kW requis</p>}
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">Chaudière remplacée depuis 2017 ?</label>
+                    <Select value={form.chaudiere_remplacee_2017 ? 'true' : 'false'} onChange={async e => {
+                      const val = e.target.value === 'true';
+                      const prev = form.chaudiere_remplacee_2017;
+                      setForm(f=>({...f,chaudiere_remplacee_2017:val}));
+                      lastSavedRef.current = { time: Date.now(), data: { chaudiere_remplacee_2017: val } };
+                      try { await onUpdate(prospect.id, { chaudiere_remplacee_2017: val }); refetchFull(); } catch(err) { showAlert(err.message,'error'); setForm(f=>({...f,chaudiere_remplacee_2017:prev})); }
+                    }} className="w-full">
+                      <option value="false">Non</option>
+                      <option value="true">Oui</option>
+                    </Select>
+                  </div>
+                  {field("Hauteur sous plafond (m)", "hauteur_sous_plafond", "number")}
+                  {form.hauteur_sous_plafond && parseFloat(form.hauteur_sous_plafond) < 5 && <p className="text-[11px] text-red-400 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> Minimum 5m requis</p>}
                   {field("Surface bâtiment (m²)", "surface_batiment", "number")}
                 </div>
                 {isAdmin && <div className="grid grid-cols-2 gap-3">{field("CA Prévisionnel (€)", "ca_previsionnel", "number")}{field("CA Réel (€)", "ca_reel", "number")}</div>}
@@ -1951,7 +2009,20 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
                 <div className="bg-pink-500/10 border border-pink-500/30 rounded-xl p-3 space-y-3">
                   <p className="text-xs font-semibold text-pink-400 uppercase tracking-wider flex items-center gap-1"><Zap className="w-3 h-3"/> Critères d'éligibilité — Haute pression flottante</p>
                   <div>
-                    <label className="block text-xs text-slate-400 mb-1">Groupe froid existant</label>
+                    <label className="block text-xs text-slate-400 mb-1">GTB / GTC installé ?</label>
+                    <Select value={form.gtb_gtc_installe ? 'true' : 'false'} onChange={async e => {
+                      const val = e.target.value === 'true';
+                      const prev = form.gtb_gtc_installe;
+                      setForm(f=>({...f,gtb_gtc_installe:val}));
+                      lastSavedRef.current = { time: Date.now(), data: { gtb_gtc_installe: val } };
+                      try { await onUpdate(prospect.id, { gtb_gtc_installe: val }); refetchFull(); } catch(err) { showAlert(err.message,'error'); setForm(f=>({...f,gtb_gtc_installe:prev})); }
+                    }} className="w-full">
+                      <option value="false">Non</option>
+                      <option value="true">Oui</option>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">Groupes froids (chambre froide, meubles frigo)</label>
                     <Select value={form.groupe_froid_existant ? 'true' : 'false'} onChange={async e => {
                       const val = e.target.value === 'true';
                       const prev = form.groupe_froid_existant;
@@ -1961,6 +2032,21 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
                     }} className="w-full">
                       <option value="false">Non</option>
                       <option value="true">Oui</option>
+                    </Select>
+                    <p className="text-[10px] text-red-400 mt-0.5 font-medium">EXCLU LA CLIMATISATION !!!</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">Groupe ancien ou neuf</label>
+                    <Select value={form.groupe_ancien_neuf||''} onChange={async e => {
+                      const val = e.target.value || null;
+                      const prev = form.groupe_ancien_neuf;
+                      setForm(f=>({...f,groupe_ancien_neuf:val}));
+                      lastSavedRef.current = { time: Date.now(), data: { groupe_ancien_neuf: val } };
+                      try { await onUpdate(prospect.id, { groupe_ancien_neuf: val }); refetchFull(); } catch(err) { showAlert(err.message,'error'); setForm(f=>({...f,groupe_ancien_neuf:prev})); }
+                    }} className="w-full">
+                      <option value="">— Sélectionner —</option>
+                      <option value="ancien">Ancien</option>
+                      <option value="neuf">Neuf</option>
                     </Select>
                   </div>
                   {field("Surface du groupe froid (m²)", "surface_groupe_froid", "number")}
@@ -3796,23 +3882,29 @@ const ProspectModal = memo(({ open, onClose, onSubmit, categories, statuses, pro
         // ===== DESTRATIFICATEUR TERTIAIRE (modal) =====
         if (pCode === 'destrat_tertiaire') return <div className="bg-slate-700/30 rounded-xl p-3 space-y-3">
           <p className="text-xs font-semibold text-violet-400 uppercase tracking-wider">Destrat. tertiaire</p>
-          <Input placeholder="Hauteur sous plafond (m) — min 5m" type="number" value={form.hauteur_sous_plafond||''} onChange={e=>setForm(f=>({...f,hauteur_sous_plafond:e.target.value}))} className="py-3"/>
-          <Select value={form.type_chauffage||''} onChange={e=>setForm(f=>({...f,type_chauffage:e.target.value}))} className="py-3"><option value="">Type chauffage (gaz/fuel)</option><option value="gaz">Gaz</option><option value="fuel">Fuel</option></Select>
+          <Select value={form.batiment_chauffe||''} onChange={e=>setForm(f=>({...f,batiment_chauffe:e.target.value}))} className="py-3"><option value="">Bâtiment chauffé ?</option><option value="oui_totalite">Oui, la totalité du site</option><option value="oui_partiellement">Oui, partiellement</option><option value="non">Non</option></Select>
+          <Select value={form.type_chauffage||''} onChange={e=>setForm(f=>({...f,type_chauffage:e.target.value}))} className="py-3"><option value="">Mode de chauffage</option><option value="gaz">Chaudière à Gaz</option><option value="fuel">Chaudière à Fuel</option></Select>
           <Input placeholder="Puissance chauffage (kW) — min 200kW" type="number" value={form.puissance_chauffage||''} onChange={e=>setForm(f=>({...f,puissance_chauffage:e.target.value}))} className="py-3"/>
+          <Select value={form.chaudiere_remplacee_2017 ? 'true' : 'false'} onChange={e=>setForm(f=>({...f,chaudiere_remplacee_2017:e.target.value==='true'}))} className="py-3"><option value="false">Chaudière remplacée depuis 2017 : Non</option><option value="true">Chaudière remplacée depuis 2017 : Oui</option></Select>
+          <Input placeholder="Hauteur sous plafond (m) — min 5m" type="number" value={form.hauteur_sous_plafond||''} onChange={e=>setForm(f=>({...f,hauteur_sous_plafond:e.target.value}))} className="py-3"/>
           <Input placeholder="Surface bâtiment (m²)" type="number" value={form.surface_batiment||''} onChange={e=>setForm(f=>({...f,surface_batiment:e.target.value}))} className="py-3"/>
         </div>;
         // ===== DESTRATIFICATEUR INDUSTRIEL (modal) =====
         if (pCode === 'destrat_industriel') return <div className="bg-slate-700/30 rounded-xl p-3 space-y-3">
           <p className="text-xs font-semibold text-indigo-400 uppercase tracking-wider">Destrat. industriel</p>
-          <Input placeholder="Hauteur sous plafond (m) — min 5m" type="number" value={form.hauteur_sous_plafond||''} onChange={e=>setForm(f=>({...f,hauteur_sous_plafond:e.target.value}))} className="py-3"/>
-          <Select value={form.type_chauffage||''} onChange={e=>setForm(f=>({...f,type_chauffage:e.target.value}))} className="py-3"><option value="">Type chauffage (gaz/fuel)</option><option value="gaz">Gaz</option><option value="fuel">Fuel</option></Select>
+          <Select value={form.batiment_chauffe||''} onChange={e=>setForm(f=>({...f,batiment_chauffe:e.target.value}))} className="py-3"><option value="">Bâtiment chauffé ?</option><option value="oui_totalite">Oui, la totalité du site</option><option value="oui_partiellement">Oui, partiellement</option><option value="non">Non</option></Select>
+          <Select value={form.type_chauffage||''} onChange={e=>setForm(f=>({...f,type_chauffage:e.target.value}))} className="py-3"><option value="">Mode de chauffage</option><option value="gaz">Chaudière à Gaz</option><option value="fuel">Chaudière à Fuel</option></Select>
           <Input placeholder="Puissance chauffage (kW) — min 400kW" type="number" value={form.puissance_chauffage||''} onChange={e=>setForm(f=>({...f,puissance_chauffage:e.target.value}))} className="py-3"/>
+          <Select value={form.chaudiere_remplacee_2017 ? 'true' : 'false'} onChange={e=>setForm(f=>({...f,chaudiere_remplacee_2017:e.target.value==='true'}))} className="py-3"><option value="false">Chaudière remplacée depuis 2017 : Non</option><option value="true">Chaudière remplacée depuis 2017 : Oui</option></Select>
+          <Input placeholder="Hauteur sous plafond (m) — min 5m" type="number" value={form.hauteur_sous_plafond||''} onChange={e=>setForm(f=>({...f,hauteur_sous_plafond:e.target.value}))} className="py-3"/>
           <Input placeholder="Surface bâtiment (m²)" type="number" value={form.surface_batiment||''} onChange={e=>setForm(f=>({...f,surface_batiment:e.target.value}))} className="py-3"/>
         </div>;
         // ===== HAUTE PRESSION FLOTTANTE (modal) =====
         if (pCode === 'haute_pression') return <div className="bg-slate-700/30 rounded-xl p-3 space-y-3">
           <p className="text-xs font-semibold text-pink-400 uppercase tracking-wider">Haute pression flottante</p>
-          <Select value={form.groupe_froid_existant ? 'true' : 'false'} onChange={e=>setForm(f=>({...f,groupe_froid_existant:e.target.value==='true'}))} className="py-3"><option value="false">Groupe froid existant : Non</option><option value="true">Groupe froid existant : Oui</option></Select>
+          <Select value={form.gtb_gtc_installe ? 'true' : 'false'} onChange={e=>setForm(f=>({...f,gtb_gtc_installe:e.target.value==='true'}))} className="py-3"><option value="false">GTB / GTC installé : Non</option><option value="true">GTB / GTC installé : Oui</option></Select>
+          <Select value={form.groupe_froid_existant ? 'true' : 'false'} onChange={e=>setForm(f=>({...f,groupe_froid_existant:e.target.value==='true'}))} className="py-3"><option value="false">Groupes froids : Non</option><option value="true">Groupes froids : Oui</option></Select>
+          <Select value={form.groupe_ancien_neuf||''} onChange={e=>setForm(f=>({...f,groupe_ancien_neuf:e.target.value}))} className="py-3"><option value="">Groupe ancien ou neuf</option><option value="ancien">Ancien</option><option value="neuf">Neuf</option></Select>
           <Input placeholder="Surface groupe froid (m²) — min 15m²" type="number" value={form.surface_groupe_froid||''} onChange={e=>setForm(f=>({...f,surface_groupe_froid:e.target.value}))} className="py-3"/>
           <Input placeholder="Puissance électrique (kW) — min 50kW" type="number" value={form.puissance_electrique||''} onChange={e=>setForm(f=>({...f,puissance_electrique:e.target.value}))} className="py-3"/>
           <Input placeholder="Surface bâtiment (m²)" type="number" value={form.surface_batiment||''} onChange={e=>setForm(f=>({...f,surface_batiment:e.target.value}))} className="py-3"/>
