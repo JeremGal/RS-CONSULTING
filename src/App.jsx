@@ -1742,7 +1742,7 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
               const pCode = getProductCode(prospect, products);
               const computedCategorie = calcCategorieAide(form.nb_personnes_foyer, form.revenu_fiscal_ref, form.is_ile_de_france);
               // ===== PRODUIT LED =====
-              if (pCode === 'led' || !pCode) return <>
+              if (pCode === 'led') return <>
                 <div className="grid grid-cols-2 gap-3">{field("Surface (m²)", "surface", "number")}{field("Nb LED à installer", "nb_led", "number")}</div>
                 <div>
                   <label className="block text-xs text-slate-400 mb-1">Nb LED réel installé</label>
@@ -4003,7 +4003,7 @@ const ProspectModal = memo(({ open, onClose, onSubmit, categories, statuses, pro
         const selProd = products.find(p => p.id === form.product_id);
         const pCode = selProd ? getProductCode({ product: selProd }, products) : null;
         const computedCat = calcCategorieAide(form.nb_personnes_foyer, form.revenu_fiscal_ref, form.is_ile_de_france);
-        if (pCode === 'led' || !pCode) return <>
+        if (pCode === 'led') return <>
           <div className="grid grid-cols-2 gap-3">
             <Select value={form.type_led||''} onChange={e=>setForm(f=>({...f,type_led:e.target.value}))} className="py-3"><option value="">Matériel</option>{Object.entries(typeLedLabels).map(([k,v])=><option key={k} value={k}>{v}</option>)}</Select>
             <Select value={form.mode_pose||''} onChange={e=>setForm(f=>({...f,mode_pose:e.target.value}))} className="py-3"><option value="">Mode pose</option>{Object.entries(modePoseLabels).map(([k,v])=><option key={k} value={k}>{v}</option>)}</Select>
