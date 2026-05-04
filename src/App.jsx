@@ -2000,48 +2000,8 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
                   </div>
                 </>;
               }
-              // ===== TYPOLOGIE DU BÂTIMENT — sélection type de site (nouveaux produits uniquement) =====
-              if (['destrat_tertiaire','destrat_industriel','haute_pression','vmc_serre','deshumidificateur'].includes(pCode)) {
-                const siteInfo = getRecommendedProduct(form.type_site_activite);
-                const recommendedLabel = siteInfo ? (siteInfo.product ? PRODUCT_LABELS[siteInfo.product] : 'NON ÉLIGIBLE') : null;
-                const isNonEligibleSite = siteInfo && !siteInfo.product;
-                var typologieBlock = <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-xl p-3 space-y-3 mb-3">
-                  <p className="text-xs font-semibold text-cyan-400 uppercase tracking-wider flex items-center gap-1"><Building2 className="w-3 h-3"/> 1. Typologie du bâtiment</p>
-                  <div>
-                    <label className="block text-xs text-slate-400 mb-1">Type de site / activité</label>
-                    <Select value={form.type_site_activite||''} onChange={async e => {
-                      const val = e.target.value || null;
-                      const prev = form.type_site_activite;
-                      setForm(f=>({...f,type_site_activite:val}));
-                      lastSavedRef.current = { time: Date.now(), data: { type_site_activite: val } };
-                      try { await onUpdate(prospect.id, { type_site_activite: val }); refetchFull(); } catch(err) { showAlert(err.message,'error'); setForm(f=>({...f,type_site_activite:prev})); }
-                    }} className="w-full">
-                      <option value="">— Sélectionner le type de site —</option>
-                      <optgroup label="Industriel">
-                        {TYPES_SITE_ACTIVITE.filter(t=>t.product==='destrat_industriel').map(t=><option key={t.value} value={t.value}>{t.label}</option>)}
-                      </optgroup>
-                      <optgroup label="Tertiaire">
-                        {TYPES_SITE_ACTIVITE.filter(t=>t.product==='destrat_tertiaire').map(t=><option key={t.value} value={t.value}>{t.label}</option>)}
-                      </optgroup>
-                      <optgroup label="Groupe de froid">
-                        {TYPES_SITE_ACTIVITE.filter(t=>t.product==='haute_pression').map(t=><option key={t.value} value={t.value}>{t.label}</option>)}
-                      </optgroup>
-                      <optgroup label="Serre agricole">
-                        {TYPES_SITE_ACTIVITE.filter(t=>t.product==='vmc_serre').map(t=><option key={t.value} value={t.value}>{t.label}</option>)}
-                      </optgroup>
-                      <optgroup label="Autre">
-                        {TYPES_SITE_ACTIVITE.filter(t=>t.product===null).map(t=><option key={t.value} value={t.value}>{t.label}</option>)}
-                      </optgroup>
-                    </Select>
-                  </div>
-                  {recommendedLabel && <div className={`p-3 rounded-lg text-center font-bold text-sm ${isNonEligibleSite ? 'bg-red-500/20 border border-red-500/40 text-red-400' : 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-400'}`}>
-                    <p className="text-[10px] uppercase tracking-wider font-medium mb-1 opacity-70">⚙ Système recommandé</p>
-                    {isNonEligibleSite ? <><XCircle className="w-4 h-4 inline mr-1"/>{recommendedLabel}</> : <><CheckCircle className="w-4 h-4 inline mr-1"/>{recommendedLabel}</>}
-                  </div>}
-                </div>;
-              }
               // ===== DESTRATIFICATEUR TERTIAIRE =====
-              if (pCode === 'destrat_tertiaire') return <>{typologieBlock}
+              if (pCode === 'destrat_tertiaire') return <>
                 <div className="bg-violet-500/10 border border-violet-500/30 rounded-xl p-3 space-y-3">
                   <p className="text-xs font-semibold text-violet-400 uppercase tracking-wider flex items-center gap-1"><Zap className="w-3 h-3"/> Critères d'éligibilité — Destrat. tertiaire</p>
                   <div>
@@ -2098,7 +2058,7 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
                 {isAdmin && <div className="grid grid-cols-2 gap-3">{field("CA Prévisionnel (€)", "ca_previsionnel", "number")}{field("CA Réel (€)", "ca_reel", "number")}</div>}
               </>;
               // ===== DESTRATIFICATEUR INDUSTRIEL =====
-              if (pCode === 'destrat_industriel') return <>{typologieBlock}
+              if (pCode === 'destrat_industriel') return <>
                 <div className="bg-indigo-500/10 border border-indigo-500/30 rounded-xl p-3 space-y-3">
                   <p className="text-xs font-semibold text-indigo-400 uppercase tracking-wider flex items-center gap-1"><Zap className="w-3 h-3"/> Critères d'éligibilité — Destrat. industriel</p>
                   <div>
@@ -2155,7 +2115,7 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
                 {isAdmin && <div className="grid grid-cols-2 gap-3">{field("CA Prévisionnel (€)", "ca_previsionnel", "number")}{field("CA Réel (€)", "ca_reel", "number")}</div>}
               </>;
               // ===== HAUTE PRESSION FLOTTANTE =====
-              if (pCode === 'haute_pression') return <>{typologieBlock}
+              if (pCode === 'haute_pression') return <>
                 <div className="bg-pink-500/10 border border-pink-500/30 rounded-xl p-3 space-y-3">
                   <p className="text-xs font-semibold text-pink-400 uppercase tracking-wider flex items-center gap-1"><Zap className="w-3 h-3"/> Critères d'éligibilité — Haute pression flottante</p>
                   <div>
@@ -2203,13 +2163,14 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
                   {form.surface_groupe_froid && parseFloat(form.surface_groupe_froid) < 15 && <p className="text-[11px] text-red-400 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> Minimum 15 m² requis</p>}
                   {field("Puissance électrique (kW)", "puissance_electrique", "number")}
                   {form.puissance_electrique && parseFloat(form.puissance_electrique) < 50 && <p className="text-[11px] text-red-400 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> Minimum 50 kW requis</p>}
+                  {field("Surface bloc de froid (m²)", "surface_bloc_froid", "number")}
                   {field("Surface bâtiment (m²)", "surface_batiment", "number")}
                   {(() => { const elig = checkEligibility('haute_pression', form); if (!elig) return null; return <div className={`mt-2 p-3 rounded-lg text-center font-bold text-sm ${elig.status === 'eligible' ? 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-400' : elig.status === 'non_eligible' ? 'bg-red-500/20 border border-red-500/40 text-red-400' : 'bg-slate-600/20 border border-slate-500/30 text-slate-400'}`}>{elig.status === 'eligible' ? <CheckCircle className="w-4 h-4 inline mr-1"/> : elig.status === 'non_eligible' ? <XCircle className="w-4 h-4 inline mr-1"/> : <AlertCircle className="w-4 h-4 inline mr-1"/>}{elig.label}{elig.reasons.length > 0 && <p className="text-[10px] font-normal mt-1">{elig.reasons.join(' • ')}</p>}</div>; })()}
                 </div>
                 {isAdmin && <div className="grid grid-cols-2 gap-3">{field("CA Prévisionnel (€)", "ca_previsionnel", "number")}{field("CA Réel (€)", "ca_reel", "number")}</div>}
               </>;
               // ===== VMC SERRE AGRICOLE =====
-              if (pCode === 'vmc_serre') return <>{typologieBlock}
+              if (pCode === 'vmc_serre') return <>
                 <div className="bg-orange-500/10 border border-orange-500/30 rounded-xl p-3 space-y-3">
                   <p className="text-xs font-semibold text-orange-400 uppercase tracking-wider flex items-center gap-1"><Zap className="w-3 h-3"/> Critères d'éligibilité — VMC serre agricole</p>
                   {field("Surface serre (m²)", "surface_serre", "number")}
@@ -2276,7 +2237,7 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
                 {isAdmin && <div className="grid grid-cols-2 gap-3">{field("CA Prévisionnel (€)", "ca_previsionnel", "number")}{field("CA Réel (€)", "ca_reel", "number")}</div>}
               </>;
               // ===== DÉSHUMIDIFICATEUR SERRE AGRICOLE =====
-              if (pCode === 'deshumidificateur') return <>{typologieBlock}
+              if (pCode === 'deshumidificateur') return <>
                 <div className="bg-teal-500/10 border border-teal-500/30 rounded-xl p-3 space-y-3">
                   <p className="text-xs font-semibold text-teal-400 uppercase tracking-wider flex items-center gap-1"><Zap className="w-3 h-3"/> Critères d'éligibilité — Déshumidificateur serre</p>
                   <p className="text-[11px] text-teal-300 font-medium">SERRES MARAÎCHÈRES UNIQUEMENT</p>
@@ -4062,39 +4023,8 @@ const ProspectModal = memo(({ open, onClose, onSubmit, categories, statuses, pro
             </div>
           </div>
         </>; }
-        // ===== TYPOLOGIE DU BÂTIMENT (modal — nouveaux produits) =====
-        if (['destrat_tertiaire','destrat_industriel','haute_pression','vmc_serre','deshumidificateur'].includes(pCode)) {
-          const siteInfoM = getRecommendedProduct(form.type_site_activite);
-          const recLabelM = siteInfoM ? (siteInfoM.product ? PRODUCT_LABELS[siteInfoM.product] : 'NON ÉLIGIBLE') : null;
-          const isNonEligM = siteInfoM && !siteInfoM.product;
-          var typologieModalBlock = <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-xl p-3 space-y-3 mb-2">
-            <p className="text-xs font-semibold text-cyan-400 uppercase tracking-wider flex items-center gap-1"><Building2 className="w-3 h-3"/> Typologie du bâtiment</p>
-            <Select value={form.type_site_activite||''} onChange={e=>setForm(f=>({...f,type_site_activite:e.target.value||null}))} className="py-3">
-              <option value="">— Type de site / activité —</option>
-              <optgroup label="Industriel">
-                {TYPES_SITE_ACTIVITE.filter(t=>t.product==='destrat_industriel').map(t=><option key={t.value} value={t.value}>{t.label}</option>)}
-              </optgroup>
-              <optgroup label="Tertiaire">
-                {TYPES_SITE_ACTIVITE.filter(t=>t.product==='destrat_tertiaire').map(t=><option key={t.value} value={t.value}>{t.label}</option>)}
-              </optgroup>
-              <optgroup label="Groupe de froid">
-                {TYPES_SITE_ACTIVITE.filter(t=>t.product==='haute_pression').map(t=><option key={t.value} value={t.value}>{t.label}</option>)}
-              </optgroup>
-              <optgroup label="Serre agricole">
-                {TYPES_SITE_ACTIVITE.filter(t=>t.product==='vmc_serre').map(t=><option key={t.value} value={t.value}>{t.label}</option>)}
-              </optgroup>
-              <optgroup label="Autre">
-                {TYPES_SITE_ACTIVITE.filter(t=>t.product===null).map(t=><option key={t.value} value={t.value}>{t.label}</option>)}
-              </optgroup>
-            </Select>
-            {recLabelM && <div className={`p-2 rounded-lg text-center font-bold text-xs ${isNonEligM ? 'bg-red-500/20 border border-red-500/40 text-red-400' : 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-400'}`}>
-              <span className="text-[9px] uppercase tracking-wider font-medium opacity-70">⚙ Recommandé : </span>
-              {recLabelM}
-            </div>}
-          </div>;
-        }
         // ===== DESTRATIFICATEUR TERTIAIRE (modal) =====
-        if (pCode === 'destrat_tertiaire') return <>{typologieModalBlock}<div className="bg-slate-700/30 rounded-xl p-3 space-y-3">
+        if (pCode === 'destrat_tertiaire') return <div className="bg-slate-700/30 rounded-xl p-3 space-y-3">
           <p className="text-xs font-semibold text-violet-400 uppercase tracking-wider">Destrat. tertiaire</p>
           <Select value={form.batiment_chauffe||''} onChange={e=>setForm(f=>({...f,batiment_chauffe:e.target.value}))} className="py-3"><option value="">Bâtiment chauffé ?</option><option value="oui_totalite">Oui, la totalité du site</option><option value="oui_partiellement">Oui, partiellement</option><option value="non">Non</option></Select>
           <Select value={form.type_chauffage||''} onChange={e=>setForm(f=>({...f,type_chauffage:e.target.value}))} className="py-3"><option value="">Mode de chauffage</option><option value="gaz">Chaudière à Gaz</option><option value="fuel">Chaudière à Fuel</option></Select>
@@ -4102,9 +4032,9 @@ const ProspectModal = memo(({ open, onClose, onSubmit, categories, statuses, pro
           <Select value={form.chaudiere_remplacee_2017 ? 'true' : 'false'} onChange={e=>setForm(f=>({...f,chaudiere_remplacee_2017:e.target.value==='true'}))} className="py-3"><option value="false">Chaudière remplacée depuis 2017 : Non</option><option value="true">Chaudière remplacée depuis 2017 : Oui</option></Select>
           <Input placeholder="Hauteur sous plafond (m) — min 5m" type="number" value={form.hauteur_sous_plafond||''} onChange={e=>setForm(f=>({...f,hauteur_sous_plafond:e.target.value}))} className="py-3"/>
           <Input placeholder="Surface bâtiment (m²)" type="number" value={form.surface_batiment||''} onChange={e=>setForm(f=>({...f,surface_batiment:e.target.value}))} className="py-3"/>
-        </div></>;
+        </div>;
         // ===== DESTRATIFICATEUR INDUSTRIEL (modal) =====
-        if (pCode === 'destrat_industriel') return <>{typologieModalBlock}<div className="bg-slate-700/30 rounded-xl p-3 space-y-3">
+        if (pCode === 'destrat_industriel') return <div className="bg-slate-700/30 rounded-xl p-3 space-y-3">
           <p className="text-xs font-semibold text-indigo-400 uppercase tracking-wider">Destrat. industriel</p>
           <Select value={form.batiment_chauffe||''} onChange={e=>setForm(f=>({...f,batiment_chauffe:e.target.value}))} className="py-3"><option value="">Bâtiment chauffé ?</option><option value="oui_totalite">Oui, la totalité du site</option><option value="oui_partiellement">Oui, partiellement</option><option value="non">Non</option></Select>
           <Select value={form.type_chauffage||''} onChange={e=>setForm(f=>({...f,type_chauffage:e.target.value}))} className="py-3"><option value="">Mode de chauffage</option><option value="gaz">Chaudière à Gaz</option><option value="fuel">Chaudière à Fuel</option></Select>
@@ -4112,35 +4042,36 @@ const ProspectModal = memo(({ open, onClose, onSubmit, categories, statuses, pro
           <Select value={form.chaudiere_remplacee_2017 ? 'true' : 'false'} onChange={e=>setForm(f=>({...f,chaudiere_remplacee_2017:e.target.value==='true'}))} className="py-3"><option value="false">Chaudière remplacée depuis 2017 : Non</option><option value="true">Chaudière remplacée depuis 2017 : Oui</option></Select>
           <Input placeholder="Hauteur sous plafond (m) — min 5m" type="number" value={form.hauteur_sous_plafond||''} onChange={e=>setForm(f=>({...f,hauteur_sous_plafond:e.target.value}))} className="py-3"/>
           <Input placeholder="Surface bâtiment (m²)" type="number" value={form.surface_batiment||''} onChange={e=>setForm(f=>({...f,surface_batiment:e.target.value}))} className="py-3"/>
-        </div></>;
+        </div>;
         // ===== HAUTE PRESSION FLOTTANTE (modal) =====
-        if (pCode === 'haute_pression') return <>{typologieModalBlock}<div className="bg-slate-700/30 rounded-xl p-3 space-y-3">
+        if (pCode === 'haute_pression') return <div className="bg-slate-700/30 rounded-xl p-3 space-y-3">
           <p className="text-xs font-semibold text-pink-400 uppercase tracking-wider">Haute pression flottante</p>
           <Select value={form.gtb_gtc_installe ? 'true' : 'false'} onChange={e=>setForm(f=>({...f,gtb_gtc_installe:e.target.value==='true'}))} className="py-3"><option value="false">GTB / GTC installé : Non</option><option value="true">GTB / GTC installé : Oui</option></Select>
           <Select value={form.groupe_froid_existant ? 'true' : 'false'} onChange={e=>setForm(f=>({...f,groupe_froid_existant:e.target.value==='true'}))} className="py-3"><option value="false">Groupes froids : Non</option><option value="true">Groupes froids : Oui</option></Select>
           <Select value={form.groupe_ancien_neuf||''} onChange={e=>setForm(f=>({...f,groupe_ancien_neuf:e.target.value}))} className="py-3"><option value="">Groupe ancien ou neuf</option><option value="ancien">Ancien</option><option value="neuf">Neuf</option></Select>
           <Input placeholder="Surface groupe froid (m²) — min 15m²" type="number" value={form.surface_groupe_froid||''} onChange={e=>setForm(f=>({...f,surface_groupe_froid:e.target.value}))} className="py-3"/>
           <Input placeholder="Puissance électrique (kW) — min 50kW" type="number" value={form.puissance_electrique||''} onChange={e=>setForm(f=>({...f,puissance_electrique:e.target.value}))} className="py-3"/>
+          <Input placeholder="Surface bloc de froid (m²)" type="number" value={form.surface_bloc_froid||''} onChange={e=>setForm(f=>({...f,surface_bloc_froid:e.target.value}))} className="py-3"/>
           <Input placeholder="Surface bâtiment (m²)" type="number" value={form.surface_batiment||''} onChange={e=>setForm(f=>({...f,surface_batiment:e.target.value}))} className="py-3"/>
-        </div></>;
+        </div>;
         // ===== VMC SERRE AGRICOLE (modal) =====
-        if (pCode === 'vmc_serre') return <>{typologieModalBlock}<div className="bg-slate-700/30 rounded-xl p-3 space-y-3">
+        if (pCode === 'vmc_serre') return <div className="bg-slate-700/30 rounded-xl p-3 space-y-3">
           <p className="text-xs font-semibold text-orange-400 uppercase tracking-wider">VMC serre agricole</p>
           <Input placeholder="Surface serre (m²) — min 1 000m²" type="number" value={form.surface_serre||''} onChange={e=>setForm(f=>({...f,surface_serre:e.target.value}))} className="py-3"/>
           <Select value={form.serre_electrifiee ? 'true' : 'false'} onChange={e=>setForm(f=>({...f,serre_electrifiee:e.target.value==='true'}))} className="py-3"><option value="false">Serre électrifiée : Non</option><option value="true">Serre électrifiée : Oui</option></Select>
           <Select value={form.type_serre||''} onChange={e=>setForm(f=>({...f,type_serre:e.target.value}))} className="py-3"><option value="">Type de serre</option><option value="maraichere">Maraîchère</option><option value="horticole">Horticole</option></Select>
           <Select value={form.statut_occupation||''} onChange={e=>setForm(f=>({...f,statut_occupation:e.target.value}))} className="py-3"><option value="">Statut occupation</option><option value="proprietaire">Propriétaire</option><option value="locataire">Locataire</option></Select>
           <Input placeholder="Surface bâtiment (m²)" type="number" value={form.surface_batiment||''} onChange={e=>setForm(f=>({...f,surface_batiment:e.target.value}))} className="py-3"/>
-        </div></>;
+        </div>;
         // ===== DÉSHUMIDIFICATEUR (modal) =====
-        if (pCode === 'deshumidificateur') return <>{typologieModalBlock}<div className="bg-slate-700/30 rounded-xl p-3 space-y-3">
+        if (pCode === 'deshumidificateur') return <div className="bg-slate-700/30 rounded-xl p-3 space-y-3">
           <p className="text-xs font-semibold text-teal-400 uppercase tracking-wider">Déshumidificateur serre</p>
           <Input placeholder="Surface serre (m²) — min 1 000m²" type="number" value={form.surface_serre||''} onChange={e=>setForm(f=>({...f,surface_serre:e.target.value}))} className="py-3"/>
           <Select value={form.serre_electrifiee ? 'true' : 'false'} onChange={e=>setForm(f=>({...f,serre_electrifiee:e.target.value==='true'}))} className="py-3"><option value="false">Serre électrifiée : Non</option><option value="true">Serre électrifiée : Oui</option></Select>
           <Select value={form.type_serre||''} onChange={e=>setForm(f=>({...f,type_serre:e.target.value}))} className="py-3"><option value="">Type de serre</option><option value="maraichere">Maraîchère</option><option value="horticole">Horticole</option></Select>
           <Select value={form.statut_occupation||''} onChange={e=>setForm(f=>({...f,statut_occupation:e.target.value}))} className="py-3"><option value="">Statut occupation</option><option value="proprietaire">Propriétaire</option><option value="locataire">Locataire</option></Select>
           <Input placeholder="Surface bâtiment (m²)" type="number" value={form.surface_batiment||''} onChange={e=>setForm(f=>({...f,surface_batiment:e.target.value}))} className="py-3"/>
-        </div></>;
+        </div>;
         return null;
       })()}
       {/* Champs communs */}
