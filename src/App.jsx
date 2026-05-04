@@ -1915,6 +1915,7 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
                   </div>
                   {field("Puissance de chauffage (kW)", "puissance_chauffage", "number")}
                   {form.puissance_chauffage && parseFloat(form.puissance_chauffage) < 200 && <p className="text-[11px] text-red-400 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> Minimum 200 kW requis</p>}
+                  {field("Surface bâtiment (m²)", "surface_batiment", "number")}
                 </div>
                 {isAdmin && <div className="grid grid-cols-2 gap-3">{field("CA Prévisionnel (€)", "ca_previsionnel", "number")}{field("CA Réel (€)", "ca_reel", "number")}</div>}
               </>;
@@ -1941,6 +1942,7 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
                   </div>
                   {field("Puissance de chauffage (kW)", "puissance_chauffage", "number")}
                   {form.puissance_chauffage && parseFloat(form.puissance_chauffage) < 400 && <p className="text-[11px] text-red-400 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> Minimum 400 kW requis</p>}
+                  {field("Surface bâtiment (m²)", "surface_batiment", "number")}
                 </div>
                 {isAdmin && <div className="grid grid-cols-2 gap-3">{field("CA Prévisionnel (€)", "ca_previsionnel", "number")}{field("CA Réel (€)", "ca_reel", "number")}</div>}
               </>;
@@ -1965,6 +1967,7 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
                   {form.surface_groupe_froid && parseFloat(form.surface_groupe_froid) < 15 && <p className="text-[11px] text-red-400 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> Minimum 15 m² requis</p>}
                   {field("Puissance électrique (kW)", "puissance_electrique", "number")}
                   {form.puissance_electrique && parseFloat(form.puissance_electrique) < 50 && <p className="text-[11px] text-red-400 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> Minimum 50 kW requis</p>}
+                  {field("Surface bâtiment (m²)", "surface_batiment", "number")}
                 </div>
                 {isAdmin && <div className="grid grid-cols-2 gap-3">{field("CA Prévisionnel (€)", "ca_previsionnel", "number")}{field("CA Réel (€)", "ca_reel", "number")}</div>}
               </>;
@@ -2030,6 +2033,7 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
                     <span className="text-sm text-slate-300">Déjà bénéficié d'une prime CEE pour déshumidificateur</span>
                   </label>
                   {form.deja_prime_cee_deshumidificateur && <p className="text-[11px] text-red-400 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> NON ÉLIGIBLE — prime déjà perçue</p>}
+                  {field("Surface bâtiment (m²)", "surface_batiment", "number")}
                 </div>
                 {isAdmin && <div className="grid grid-cols-2 gap-3">{field("CA Prévisionnel (€)", "ca_previsionnel", "number")}{field("CA Réel (€)", "ca_reel", "number")}</div>}
               </>;
@@ -2096,6 +2100,7 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
                     <span className="text-sm text-slate-300">Déjà bénéficié d'une prime CEE pour déshumidificateur</span>
                   </label>
                   {form.deja_prime_cee_deshumidificateur && <p className="text-[11px] text-red-400 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> NON ÉLIGIBLE — prime déjà perçue</p>}
+                  {field("Surface bâtiment (m²)", "surface_batiment", "number")}
                 </div>
                 {isAdmin && <div className="grid grid-cols-2 gap-3">{field("CA Prévisionnel (€)", "ca_previsionnel", "number")}{field("CA Réel (€)", "ca_reel", "number")}</div>}
               </>;
@@ -3794,6 +3799,7 @@ const ProspectModal = memo(({ open, onClose, onSubmit, categories, statuses, pro
           <Input placeholder="Hauteur sous plafond (m) — min 5m" type="number" value={form.hauteur_sous_plafond||''} onChange={e=>setForm(f=>({...f,hauteur_sous_plafond:e.target.value}))} className="py-3"/>
           <Select value={form.type_chauffage||''} onChange={e=>setForm(f=>({...f,type_chauffage:e.target.value}))} className="py-3"><option value="">Type chauffage (gaz/fuel)</option><option value="gaz">Gaz</option><option value="fuel">Fuel</option></Select>
           <Input placeholder="Puissance chauffage (kW) — min 200kW" type="number" value={form.puissance_chauffage||''} onChange={e=>setForm(f=>({...f,puissance_chauffage:e.target.value}))} className="py-3"/>
+          <Input placeholder="Surface bâtiment (m²)" type="number" value={form.surface_batiment||''} onChange={e=>setForm(f=>({...f,surface_batiment:e.target.value}))} className="py-3"/>
         </div>;
         // ===== DESTRATIFICATEUR INDUSTRIEL (modal) =====
         if (pCode === 'destrat_industriel') return <div className="bg-slate-700/30 rounded-xl p-3 space-y-3">
@@ -3801,6 +3807,7 @@ const ProspectModal = memo(({ open, onClose, onSubmit, categories, statuses, pro
           <Input placeholder="Hauteur sous plafond (m) — min 5m" type="number" value={form.hauteur_sous_plafond||''} onChange={e=>setForm(f=>({...f,hauteur_sous_plafond:e.target.value}))} className="py-3"/>
           <Select value={form.type_chauffage||''} onChange={e=>setForm(f=>({...f,type_chauffage:e.target.value}))} className="py-3"><option value="">Type chauffage (gaz/fuel)</option><option value="gaz">Gaz</option><option value="fuel">Fuel</option></Select>
           <Input placeholder="Puissance chauffage (kW) — min 400kW" type="number" value={form.puissance_chauffage||''} onChange={e=>setForm(f=>({...f,puissance_chauffage:e.target.value}))} className="py-3"/>
+          <Input placeholder="Surface bâtiment (m²)" type="number" value={form.surface_batiment||''} onChange={e=>setForm(f=>({...f,surface_batiment:e.target.value}))} className="py-3"/>
         </div>;
         // ===== HAUTE PRESSION FLOTTANTE (modal) =====
         if (pCode === 'haute_pression') return <div className="bg-slate-700/30 rounded-xl p-3 space-y-3">
@@ -3808,6 +3815,7 @@ const ProspectModal = memo(({ open, onClose, onSubmit, categories, statuses, pro
           <Select value={form.groupe_froid_existant ? 'true' : 'false'} onChange={e=>setForm(f=>({...f,groupe_froid_existant:e.target.value==='true'}))} className="py-3"><option value="false">Groupe froid existant : Non</option><option value="true">Groupe froid existant : Oui</option></Select>
           <Input placeholder="Surface groupe froid (m²) — min 15m²" type="number" value={form.surface_groupe_froid||''} onChange={e=>setForm(f=>({...f,surface_groupe_froid:e.target.value}))} className="py-3"/>
           <Input placeholder="Puissance électrique (kW) — min 50kW" type="number" value={form.puissance_electrique||''} onChange={e=>setForm(f=>({...f,puissance_electrique:e.target.value}))} className="py-3"/>
+          <Input placeholder="Surface bâtiment (m²)" type="number" value={form.surface_batiment||''} onChange={e=>setForm(f=>({...f,surface_batiment:e.target.value}))} className="py-3"/>
         </div>;
         // ===== VMC SERRE AGRICOLE (modal) =====
         if (pCode === 'vmc_serre') return <div className="bg-slate-700/30 rounded-xl p-3 space-y-3">
@@ -3816,6 +3824,7 @@ const ProspectModal = memo(({ open, onClose, onSubmit, categories, statuses, pro
           <Select value={form.serre_electrifiee ? 'true' : 'false'} onChange={e=>setForm(f=>({...f,serre_electrifiee:e.target.value==='true'}))} className="py-3"><option value="false">Serre électrifiée : Non</option><option value="true">Serre électrifiée : Oui</option></Select>
           <Select value={form.type_serre||''} onChange={e=>setForm(f=>({...f,type_serre:e.target.value}))} className="py-3"><option value="">Type de serre</option><option value="maraichere">Maraîchère</option><option value="horticole">Horticole</option></Select>
           <Select value={form.statut_occupation||''} onChange={e=>setForm(f=>({...f,statut_occupation:e.target.value}))} className="py-3"><option value="">Statut occupation</option><option value="proprietaire">Propriétaire</option><option value="locataire">Locataire</option></Select>
+          <Input placeholder="Surface bâtiment (m²)" type="number" value={form.surface_batiment||''} onChange={e=>setForm(f=>({...f,surface_batiment:e.target.value}))} className="py-3"/>
         </div>;
         // ===== DÉSHUMIDIFICATEUR (modal) =====
         if (pCode === 'deshumidificateur') return <div className="bg-slate-700/30 rounded-xl p-3 space-y-3">
@@ -3824,6 +3833,7 @@ const ProspectModal = memo(({ open, onClose, onSubmit, categories, statuses, pro
           <Select value={form.serre_electrifiee ? 'true' : 'false'} onChange={e=>setForm(f=>({...f,serre_electrifiee:e.target.value==='true'}))} className="py-3"><option value="false">Serre électrifiée : Non</option><option value="true">Serre électrifiée : Oui</option></Select>
           <Select value={form.type_serre||''} onChange={e=>setForm(f=>({...f,type_serre:e.target.value}))} className="py-3"><option value="">Type de serre</option><option value="maraichere">Maraîchère</option><option value="horticole">Horticole</option></Select>
           <Select value={form.statut_occupation||''} onChange={e=>setForm(f=>({...f,statut_occupation:e.target.value}))} className="py-3"><option value="">Statut occupation</option><option value="proprietaire">Propriétaire</option><option value="locataire">Locataire</option></Select>
+          <Input placeholder="Surface bâtiment (m²)" type="number" value={form.surface_batiment||''} onChange={e=>setForm(f=>({...f,surface_batiment:e.target.value}))} className="py-3"/>
         </div>;
         return null;
       })()}
