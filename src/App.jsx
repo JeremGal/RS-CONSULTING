@@ -1571,6 +1571,44 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
           </div>
           <div className="space-y-3">
             <h3 className="text-sm font-semibold text-white flex items-center gap-2"><Package className="w-4 h-4 text-emerald-400"/> Commercial & Attribution</h3>
+            {/* TYPE DE SITE / ACTIVITÉ — avant la sélection produit */}
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Type de site / activité</label>
+              <Select value={form.type_site_activite||''} onChange={async e => {
+                const val = e.target.value || null;
+                const prev = form.type_site_activite;
+                setForm(f=>({...f,type_site_activite:val}));
+                lastSavedRef.current = { time: Date.now(), data: { type_site_activite: val } };
+                try { await onUpdate(prospect.id, { type_site_activite: val }); refetchFull(); } catch(err) { showAlert(err.message,'error'); setForm(f=>({...f,type_site_activite:prev})); }
+              }} className="w-full">
+                <option value="">— Sélectionner le type de site —</option>
+                <optgroup label="Industriel">
+                  {TYPES_SITE_ACTIVITE.filter(t=>t.product==='destrat_industriel').map(t=><option key={t.value} value={t.value}>{t.label}</option>)}
+                </optgroup>
+                <optgroup label="Tertiaire">
+                  {TYPES_SITE_ACTIVITE.filter(t=>t.product==='destrat_tertiaire').map(t=><option key={t.value} value={t.value}>{t.label}</option>)}
+                </optgroup>
+                <optgroup label="Groupe de froid">
+                  {TYPES_SITE_ACTIVITE.filter(t=>t.product==='haute_pression').map(t=><option key={t.value} value={t.value}>{t.label}</option>)}
+                </optgroup>
+                <optgroup label="Serre agricole">
+                  {TYPES_SITE_ACTIVITE.filter(t=>t.product==='vmc_serre').map(t=><option key={t.value} value={t.value}>{t.label}</option>)}
+                </optgroup>
+                <optgroup label="Autre">
+                  {TYPES_SITE_ACTIVITE.filter(t=>t.product===null).map(t=><option key={t.value} value={t.value}>{t.label}</option>)}
+                </optgroup>
+              </Select>
+              {(() => {
+                const si = getRecommendedProduct(form.type_site_activite);
+                if (!si) return null;
+                const rl = si.product ? PRODUCT_LABELS[si.product] : 'NON ÉLIGIBLE';
+                const bad = !si.product;
+                return <div className={`mt-2 p-2 rounded-lg text-center font-bold text-xs ${bad ? 'bg-red-500/20 border border-red-500/40 text-red-400' : 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-400'}`}>
+                  <span className="text-[9px] uppercase tracking-wider font-medium opacity-70 block mb-0.5">⚙ Système recommandé</span>
+                  {bad ? <><XCircle className="w-3 h-3 inline mr-1"/>{rl}</> : <><CheckCircle className="w-3 h-3 inline mr-1"/>{rl}</>}
+                </div>;
+              })()}
+            </div>
             {/* LIVE SELECTORS — instant save, no edit mode needed */}
             {[
               { label:'Statut', field:'status_id', options: statuses, color: true },
@@ -3921,6 +3959,36 @@ const ProspectModal = memo(({ open, onClose, onSubmit, categories, statuses, pro
       <AddressAutocomplete value={form.address||''} onChange={v=>setForm(f=>({...f,address:v}))} onSelect={handleAddr}/>
       <div className="grid grid-cols-2 gap-3"><Input placeholder="Code postal" value={form.postal_code||''} onChange={e=>{const v=e.target.value; const z=getZoneClimatique(v); setForm(f=>({...f,postal_code:v,zone_climatique:z}));}} className="py-3"/><Input placeholder="Ville" value={form.city||''} onChange={e=>setForm(f=>({...f,city:e.target.value}))} className="py-3"/></div>
       {form.zone_climatique && <div className="flex items-center gap-2 p-2 rounded-lg" style={{ backgroundColor: zoneColors[form.zone_climatique] + '20' }}><span className="w-3 h-3 rounded-full" style={{ backgroundColor: zoneColors[form.zone_climatique] }}/><span className="text-sm font-semibold" style={{ color: zoneColors[form.zone_climatique] }}>Zone {form.zone_climatique}</span></div>}
+      {/* TYPE DE SITE — avant le produit pour guider le choix */}
+      <div>
+        <Select value={form.type_site_activite||''} onChange={e=>setForm(f=>({...f,type_site_activite:e.target.value||null}))} className="py-3">
+          <option value="">— Type de site / activité —</option>
+          <optgroup label="Industriel">
+            {TYPES_SITE_ACTIVITE.filter(t=>t.product==='destrat_industriel').map(t=><option key={t.value} value={t.value}>{t.label}</option>)}
+          </optgroup>
+          <optgroup label="Tertiaire">
+            {TYPES_SITE_ACTIVITE.filter(t=>t.product==='destrat_tertiaire').map(t=><option key={t.value} value={t.value}>{t.label}</option>)}
+          </optgroup>
+          <optgroup label="Groupe de froid">
+            {TYPES_SITE_ACTIVITE.filter(t=>t.product==='haute_pression').map(t=><option key={t.value} value={t.value}>{t.label}</option>)}
+          </optgroup>
+          <optgroup label="Serre agricole">
+            {TYPES_SITE_ACTIVITE.filter(t=>t.product==='vmc_serre').map(t=><option key={t.value} value={t.value}>{t.label}</option>)}
+          </optgroup>
+          <optgroup label="Autre">
+            {TYPES_SITE_ACTIVITE.filter(t=>t.product===null).map(t=><option key={t.value} value={t.value}>{t.label}</option>)}
+          </optgroup>
+        </Select>
+        {(() => {
+          const si = getRecommendedProduct(form.type_site_activite);
+          if (!si) return null;
+          const rl = si.product ? PRODUCT_LABELS[si.product] : 'NON ÉLIGIBLE';
+          const bad = !si.product;
+          return <div className={`mt-1 p-2 rounded-lg text-center font-bold text-xs ${bad ? 'bg-red-500/20 border border-red-500/40 text-red-400' : 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-400'}`}>
+            ⚙ Recommandé : {rl}
+          </div>;
+        })()}
+      </div>
       <div className="grid grid-cols-2 gap-3">
         <Select value={form.product_id||''} onChange={e=>setForm(f=>({...f,product_id:e.target.value}))} className="py-3"><option value="">Produit</option>{products.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</Select>
         <Select value={form.installer_id||''} onChange={e=>setForm(f=>({...f,installer_id:e.target.value}))} className="py-3"><option value="">Installateur</option>{installers.map(i=><option key={i.id} value={i.id}>{i.name}</option>)}</Select>
