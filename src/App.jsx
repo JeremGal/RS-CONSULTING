@@ -136,6 +136,40 @@ const getProductCode = (prospect, products) => {
   return null;
 };
 
+// Calcul d'éligibilité automatique par produit
+const checkEligibility = (pCode, form) => {
+  if (!pCode) return null;
+  const reasons = [];
+  if (pCode === 'destrat_tertiaire' || pCode === 'destrat_industriel') {
+    const minPuissance = pCode === 'destrat_tertiaire' ? 200 : 400;
+    if (form.batiment_chauffe === 'non') reasons.push('Bâtiment non chauffé');
+    if (form.type_chauffage && form.type_chauffage !== 'gaz' && form.type_chauffage !== 'fuel') reasons.push('Chauffage ni gaz ni fuel');
+    if (form.puissance_chauffage && parseFloat(form.puissance_chauffage) < minPuissance) reasons.push(`Puissance < ${minPuissance} kW`);
+    if (form.hauteur_sous_plafond && parseFloat(form.hauteur_sous_plafond) < 5) reasons.push('Hauteur sous plafond < 5m');
+    const filled = form.batiment_chauffe && form.type_chauffage && form.puissance_chauffage && form.hauteur_sous_plafond;
+    if (!filled) return { status: 'incomplete', label: 'Infos manquantes', reasons: [] };
+    return reasons.length > 0 ? { status: 'non_eligible', label: 'NON ÉLIGIBLE', reasons } : { status: 'eligible', label: 'ÉLIGIBLE DESTRATIFICATEUR', reasons: [] };
+  }
+  if (pCode === 'haute_pression') {
+    if (!form.groupe_froid_existant) reasons.push('Pas de groupe froid');
+    if (form.surface_groupe_froid && parseFloat(form.surface_groupe_froid) < 15) reasons.push('Surface groupe froid < 15 m²');
+    if (form.puissance_electrique && parseFloat(form.puissance_electrique) < 50) reasons.push('Puissance < 50 kW');
+    const filled = form.groupe_froid_existant !== undefined && form.surface_groupe_froid && form.puissance_electrique;
+    if (!filled) return { status: 'incomplete', label: 'Infos manquantes', reasons: [] };
+    return reasons.length > 0 ? { status: 'non_eligible', label: 'NON ÉLIGIBLE', reasons } : { status: 'eligible', label: 'ÉLIGIBLE HP FLOTTANTE', reasons: [] };
+  }
+  if (pCode === 'vmc_serre' || pCode === 'deshumidificateur') {
+    if (form.surface_serre && parseFloat(form.surface_serre) < 1000) reasons.push('Surface serre < 1 000 m²');
+    if (form.serre_electrifiee === false) reasons.push('Serre non électrifiée');
+    if (form.type_serre === 'horticole') reasons.push('Serre horticole (maraîchère requise)');
+    if (form.deja_prime_cee_deshumidificateur) reasons.push('Prime CEE déjà perçue');
+    const filled = form.surface_serre && form.serre_electrifiee !== undefined && form.type_serre;
+    if (!filled) return { status: 'incomplete', label: 'Infos manquantes', reasons: [] };
+    return reasons.length > 0 ? { status: 'non_eligible', label: 'NON ÉLIGIBLE', reasons } : { status: 'eligible', label: pCode === 'vmc_serre' ? 'ÉLIGIBLE VMC SERRE' : 'ÉLIGIBLE DÉSHUMIDIFICATEUR', reasons: [] };
+  }
+  return null;
+};
+
 // Zone climatique par département (code postal → 2 premiers chiffres → département)
 const ZONE_H1_DEPTS = ['01','02','03','05','08','10','14','15','19','21','23','25','27','28','38','39','42','43','45','51','52','54','55','57','58','59','60','61','62','63','67','68','69','70','71','73','74','75','76','77','78','80','87','88','89','90','91','92','93','94','95'];
 const ZONE_H2_DEPTS = ['04','07','09','12','16','17','18','22','24','26','29','31','32','33','35','36','37','40','41','44','46','47','48','49','50','53','56','64','65','72','79','81','82','84','85','86'];
@@ -1945,6 +1979,7 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
                   {field("Hauteur sous plafond (m)", "hauteur_sous_plafond", "number")}
                   {form.hauteur_sous_plafond && parseFloat(form.hauteur_sous_plafond) < 5 && <p className="text-[11px] text-red-400 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> Minimum 5m requis</p>}
                   {field("Surface bâtiment (m²)", "surface_batiment", "number")}
+                  {(() => { const elig = checkEligibility('destrat_tertiaire', form); if (!elig) return null; return <div className={`mt-2 p-3 rounded-lg text-center font-bold text-sm ${elig.status === 'eligible' ? 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-400' : elig.status === 'non_eligible' ? 'bg-red-500/20 border border-red-500/40 text-red-400' : 'bg-slate-600/20 border border-slate-500/30 text-slate-400'}`}>{elig.status === 'eligible' ? <CheckCircle className="w-4 h-4 inline mr-1"/> : elig.status === 'non_eligible' ? <XCircle className="w-4 h-4 inline mr-1"/> : <AlertCircle className="w-4 h-4 inline mr-1"/>}{elig.label}{elig.reasons.length > 0 && <p className="text-[10px] font-normal mt-1">{elig.reasons.join(' • ')}</p>}</div>; })()}
                 </div>
                 {isAdmin && <div className="grid grid-cols-2 gap-3">{field("CA Prévisionnel (€)", "ca_previsionnel", "number")}{field("CA Réel (€)", "ca_reel", "number")}</div>}
               </>;
@@ -2001,6 +2036,7 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
                   {field("Hauteur sous plafond (m)", "hauteur_sous_plafond", "number")}
                   {form.hauteur_sous_plafond && parseFloat(form.hauteur_sous_plafond) < 5 && <p className="text-[11px] text-red-400 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> Minimum 5m requis</p>}
                   {field("Surface bâtiment (m²)", "surface_batiment", "number")}
+                  {(() => { const elig = checkEligibility('destrat_industriel', form); if (!elig) return null; return <div className={`mt-2 p-3 rounded-lg text-center font-bold text-sm ${elig.status === 'eligible' ? 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-400' : elig.status === 'non_eligible' ? 'bg-red-500/20 border border-red-500/40 text-red-400' : 'bg-slate-600/20 border border-slate-500/30 text-slate-400'}`}>{elig.status === 'eligible' ? <CheckCircle className="w-4 h-4 inline mr-1"/> : elig.status === 'non_eligible' ? <XCircle className="w-4 h-4 inline mr-1"/> : <AlertCircle className="w-4 h-4 inline mr-1"/>}{elig.label}{elig.reasons.length > 0 && <p className="text-[10px] font-normal mt-1">{elig.reasons.join(' • ')}</p>}</div>; })()}
                 </div>
                 {isAdmin && <div className="grid grid-cols-2 gap-3">{field("CA Prévisionnel (€)", "ca_previsionnel", "number")}{field("CA Réel (€)", "ca_reel", "number")}</div>}
               </>;
@@ -2054,6 +2090,7 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
                   {field("Puissance électrique (kW)", "puissance_electrique", "number")}
                   {form.puissance_electrique && parseFloat(form.puissance_electrique) < 50 && <p className="text-[11px] text-red-400 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> Minimum 50 kW requis</p>}
                   {field("Surface bâtiment (m²)", "surface_batiment", "number")}
+                  {(() => { const elig = checkEligibility('haute_pression', form); if (!elig) return null; return <div className={`mt-2 p-3 rounded-lg text-center font-bold text-sm ${elig.status === 'eligible' ? 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-400' : elig.status === 'non_eligible' ? 'bg-red-500/20 border border-red-500/40 text-red-400' : 'bg-slate-600/20 border border-slate-500/30 text-slate-400'}`}>{elig.status === 'eligible' ? <CheckCircle className="w-4 h-4 inline mr-1"/> : elig.status === 'non_eligible' ? <XCircle className="w-4 h-4 inline mr-1"/> : <AlertCircle className="w-4 h-4 inline mr-1"/>}{elig.label}{elig.reasons.length > 0 && <p className="text-[10px] font-normal mt-1">{elig.reasons.join(' • ')}</p>}</div>; })()}
                 </div>
                 {isAdmin && <div className="grid grid-cols-2 gap-3">{field("CA Prévisionnel (€)", "ca_previsionnel", "number")}{field("CA Réel (€)", "ca_reel", "number")}</div>}
               </>;
@@ -2120,6 +2157,7 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
                   </label>
                   {form.deja_prime_cee_deshumidificateur && <p className="text-[11px] text-red-400 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> NON ÉLIGIBLE — prime déjà perçue</p>}
                   {field("Surface bâtiment (m²)", "surface_batiment", "number")}
+                  {(() => { const elig = checkEligibility('vmc_serre', form); if (!elig) return null; return <div className={`mt-2 p-3 rounded-lg text-center font-bold text-sm ${elig.status === 'eligible' ? 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-400' : elig.status === 'non_eligible' ? 'bg-red-500/20 border border-red-500/40 text-red-400' : 'bg-slate-600/20 border border-slate-500/30 text-slate-400'}`}>{elig.status === 'eligible' ? <CheckCircle className="w-4 h-4 inline mr-1"/> : elig.status === 'non_eligible' ? <XCircle className="w-4 h-4 inline mr-1"/> : <AlertCircle className="w-4 h-4 inline mr-1"/>}{elig.label}{elig.reasons.length > 0 && <p className="text-[10px] font-normal mt-1">{elig.reasons.join(' • ')}</p>}</div>; })()}
                 </div>
                 {isAdmin && <div className="grid grid-cols-2 gap-3">{field("CA Prévisionnel (€)", "ca_previsionnel", "number")}{field("CA Réel (€)", "ca_reel", "number")}</div>}
               </>;
@@ -2187,6 +2225,7 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
                   </label>
                   {form.deja_prime_cee_deshumidificateur && <p className="text-[11px] text-red-400 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> NON ÉLIGIBLE — prime déjà perçue</p>}
                   {field("Surface bâtiment (m²)", "surface_batiment", "number")}
+                  {(() => { const elig = checkEligibility('deshumidificateur', form); if (!elig) return null; return <div className={`mt-2 p-3 rounded-lg text-center font-bold text-sm ${elig.status === 'eligible' ? 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-400' : elig.status === 'non_eligible' ? 'bg-red-500/20 border border-red-500/40 text-red-400' : 'bg-slate-600/20 border border-slate-500/30 text-slate-400'}`}>{elig.status === 'eligible' ? <CheckCircle className="w-4 h-4 inline mr-1"/> : elig.status === 'non_eligible' ? <XCircle className="w-4 h-4 inline mr-1"/> : <AlertCircle className="w-4 h-4 inline mr-1"/>}{elig.label}{elig.reasons.length > 0 && <p className="text-[10px] font-normal mt-1">{elig.reasons.join(' • ')}</p>}</div>; })()}
                 </div>
                 {isAdmin && <div className="grid grid-cols-2 gap-3">{field("CA Prévisionnel (€)", "ca_previsionnel", "number")}{field("CA Réel (€)", "ca_reel", "number")}</div>}
               </>;
