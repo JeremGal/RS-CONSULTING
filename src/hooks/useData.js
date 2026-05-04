@@ -233,7 +233,7 @@ export function useProspects() {
     ['assignedUsers','assignedUserIds','assignments','product','category','status','installer','closer','next_reminder','prospect_number'].forEach(k => delete insert[k]);
     Object.keys(insert).forEach(k => { if (insert[k] === '') insert[k] = null; });
     // Ensure numeric fields are proper numbers (not strings from inputs)
-    ['nb_led','nb_led_reel','ca_previsionnel','ca_reel','surface','puissance_pac','nb_panneaux','nb_personnes_foyer','revenu_fiscal_ref','reste_a_charge','commission_pac','commission_admin','commission_telepro','commission_fournisseur','surface_sous_sol','surface_comble','surface_isoler_total','surface_habitable','surface_chauffer','surface_batiment','surface_mur_interieur','surface_mur_exterieur','surface_fenetre'].forEach(k => {
+    ['nb_led','nb_led_reel','ca_previsionnel','ca_reel','surface','puissance_pac','nb_panneaux','nb_personnes_foyer','revenu_fiscal_ref','reste_a_charge','commission_pac','commission_admin','commission_telepro','commission_fournisseur','surface_sous_sol','surface_comble','surface_isoler_total','surface_habitable','surface_chauffer','surface_batiment','surface_mur_interieur','surface_mur_exterieur','surface_fenetre','hauteur_sous_plafond','puissance_chauffage','surface_groupe_froid','puissance_electrique','surface_serre'].forEach(k => {
       if (insert[k] !== null && insert[k] !== undefined) { const n = Number(insert[k]); insert[k] = isNaN(n) ? null : n; }
     });
     log('INSERT prospect');
@@ -254,7 +254,7 @@ export function useProspects() {
     ['id','created_at','prospect_number','product','category','status','installer','assignments','assignedUsers','assignedUserIds','closer','next_reminder'].forEach(k => delete clean[k]);
     Object.keys(clean).forEach(k => { if (clean[k] === '') clean[k] = null; });
     // Ensure numeric fields are proper numbers (not strings from inputs)
-    ['nb_led','nb_led_reel','ca_previsionnel','ca_reel','surface','puissance_pac','nb_panneaux','nb_personnes_foyer','revenu_fiscal_ref','reste_a_charge','commission_pac','commission_admin','commission_telepro','commission_fournisseur','surface_sous_sol','surface_comble','surface_isoler_total','surface_habitable','surface_chauffer','surface_batiment','surface_mur_interieur','surface_mur_exterieur','surface_fenetre'].forEach(k => {
+    ['nb_led','nb_led_reel','ca_previsionnel','ca_reel','surface','puissance_pac','nb_panneaux','nb_personnes_foyer','revenu_fiscal_ref','reste_a_charge','commission_pac','commission_admin','commission_telepro','commission_fournisseur','surface_sous_sol','surface_comble','surface_isoler_total','surface_habitable','surface_chauffer','surface_batiment','surface_mur_interieur','surface_mur_exterieur','surface_fenetre','hauteur_sous_plafond','puissance_chauffage','surface_groupe_froid','puissance_electrique','surface_serre'].forEach(k => {
       if (clean[k] !== null && clean[k] !== undefined) { const n = Number(clean[k]); clean[k] = isNaN(n) ? null : n; }
     });
     let prev;
@@ -346,6 +346,9 @@ export function useProspects() {
       zone_climatique: null, ballon_type: null, type_chauffage: null,
       date_audit: null, numero_fiscal: null, type_logement: null, type_projet: null,
       surface_batiment: null, surface_mur_interieur: null, surface_mur_exterieur: null, surface_fenetre: null,
+      hauteur_sous_plafond: null, puissance_chauffage: null, groupe_froid_existant: false, surface_groupe_froid: null,
+      puissance_electrique: null, surface_serre: null, serre_electrifiee: false, type_serre: null,
+      statut_occupation: null, deja_prime_cee_deshumidificateur: false, type_cible: null,
     };
     return addProspect(copy);
   }, [addProspect]);

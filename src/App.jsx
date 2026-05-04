@@ -118,6 +118,16 @@ const getProductCode = (prospect, products) => {
   const p = prospect?.product || (prospect?.product_id && products?.find(pr => pr.id === prospect.product_id));
   if (!p) return null;
   const name = (p.name || '').toLowerCase().trim();
+  // Destratificateur tertiaire
+  if (name.includes('destrat') && name.includes('tertiaire')) return 'destrat_tertiaire';
+  // Destratificateur industriel
+  if (name.includes('destrat') && name.includes('industriel')) return 'destrat_industriel';
+  // Déshumidificateur serre agricole
+  if (name.includes('deshumidifi') || name.includes('déshumidifi')) return 'deshumidificateur';
+  // VMC serre agricole
+  if (name.includes('vmc') && name.includes('serre')) return 'vmc_serre';
+  // Haute pression flottante
+  if (name.includes('haute') && name.includes('pression')) return 'haute_pression';
   // ITI — y compris codes CEE : BAR-TH-174 (ITI murs int.), BAR-EN-101 (combles), BAR-EN-103 (planchers), BAR-EN-102 (ITE)
   if (name.includes('iti') || name.includes('ite') || name.includes('isolation') || name.includes('174') || name.includes('101') || name.includes('102') || name.includes('103')) return 'iti';
   // PAC — y compris codes CEE : BAR-TH-171 (PAC air/eau), BAR-TH-143 (solaire combi), BAR-TH-148 (CET)
@@ -234,6 +244,28 @@ const typeChauffageOptions = [
   { value: 'bois', label: 'Bois' },
   { value: 'gaz', label: 'Gaz' },
   { value: 'fuel', label: 'Fuel' },
+];
+
+const typeProjetOptions = [
+  { value: 'pro', label: 'Professionnel' },
+  { value: 'particulier', label: 'Particulier' },
+];
+
+const typeCibleOptions = [
+  { value: 'stockage_surgele', label: 'Stockage surgelé' },
+  { value: 'agriculteurs', label: 'Agriculteurs' },
+  { value: 'supermarche', label: 'Supermarché' },
+  { value: 'data_center', label: 'Data Center' },
+  { value: 'logistique', label: 'Logistique' },
+  { value: 'garage', label: 'Garage' },
+  { value: 'lieu_sportif', label: 'Lieu sportif' },
+  { value: 'commerce', label: 'Commerce' },
+  { value: 'carrosserie', label: 'Carrosserie' },
+  { value: 'usine', label: 'Usine' },
+  { value: 'site_production', label: 'Site de production' },
+  { value: 'ateliers', label: 'Ateliers' },
+  { value: 'metallerie', label: 'Métallerie' },
+  { value: 'plastique', label: 'Plastique' },
 ];
 
 // =====================================================
@@ -1860,11 +1892,246 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
                   </div>
                 </>;
               }
+              // ===== DESTRATIFICATEUR TERTIAIRE =====
+              if (pCode === 'destrat_tertiaire') return <>
+                <div className="bg-violet-500/10 border border-violet-500/30 rounded-xl p-3 space-y-3">
+                  <p className="text-xs font-semibold text-violet-400 uppercase tracking-wider flex items-center gap-1"><Zap className="w-3 h-3"/> Critères d'éligibilité — Destrat. tertiaire</p>
+                  {field("Hauteur sous plafond (m)", "hauteur_sous_plafond", "number")}
+                  {form.hauteur_sous_plafond && parseFloat(form.hauteur_sous_plafond) < 5 && <p className="text-[11px] text-red-400 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> Minimum 5m requis</p>}
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">Type de chauffage (gaz ou fuel obligatoire)</label>
+                    <Select value={form.type_chauffage||''} onChange={async e => {
+                      const val = e.target.value || null;
+                      const prev = form.type_chauffage;
+                      setForm(f=>({...f,type_chauffage:val}));
+                      lastSavedRef.current = { time: Date.now(), data: { type_chauffage: val } };
+                      try { await onUpdate(prospect.id, { type_chauffage: val }); refetchFull(); } catch(err) { showAlert(err.message,'error'); setForm(f=>({...f,type_chauffage:prev})); }
+                    }} className="w-full">
+                      <option value="">— Sélectionner —</option>
+                      <option value="gaz">Gaz</option>
+                      <option value="fuel">Fuel</option>
+                    </Select>
+                    {form.type_chauffage && form.type_chauffage !== 'gaz' && form.type_chauffage !== 'fuel' && <p className="text-[11px] text-red-400 mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> Gaz ou Fuel obligatoire</p>}
+                  </div>
+                  {field("Puissance de chauffage (kW)", "puissance_chauffage", "number")}
+                  {form.puissance_chauffage && parseFloat(form.puissance_chauffage) < 200 && <p className="text-[11px] text-red-400 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> Minimum 200 kW requis</p>}
+                </div>
+                {isAdmin && <div className="grid grid-cols-2 gap-3">{field("CA Prévisionnel (€)", "ca_previsionnel", "number")}{field("CA Réel (€)", "ca_reel", "number")}</div>}
+              </>;
+              // ===== DESTRATIFICATEUR INDUSTRIEL =====
+              if (pCode === 'destrat_industriel') return <>
+                <div className="bg-indigo-500/10 border border-indigo-500/30 rounded-xl p-3 space-y-3">
+                  <p className="text-xs font-semibold text-indigo-400 uppercase tracking-wider flex items-center gap-1"><Zap className="w-3 h-3"/> Critères d'éligibilité — Destrat. industriel</p>
+                  {field("Hauteur sous plafond (m)", "hauteur_sous_plafond", "number")}
+                  {form.hauteur_sous_plafond && parseFloat(form.hauteur_sous_plafond) < 5 && <p className="text-[11px] text-red-400 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> Minimum 5m requis</p>}
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">Type de chauffage (gaz ou fuel obligatoire)</label>
+                    <Select value={form.type_chauffage||''} onChange={async e => {
+                      const val = e.target.value || null;
+                      const prev = form.type_chauffage;
+                      setForm(f=>({...f,type_chauffage:val}));
+                      lastSavedRef.current = { time: Date.now(), data: { type_chauffage: val } };
+                      try { await onUpdate(prospect.id, { type_chauffage: val }); refetchFull(); } catch(err) { showAlert(err.message,'error'); setForm(f=>({...f,type_chauffage:prev})); }
+                    }} className="w-full">
+                      <option value="">— Sélectionner —</option>
+                      <option value="gaz">Gaz</option>
+                      <option value="fuel">Fuel</option>
+                    </Select>
+                    {form.type_chauffage && form.type_chauffage !== 'gaz' && form.type_chauffage !== 'fuel' && <p className="text-[11px] text-red-400 mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> Gaz ou Fuel obligatoire</p>}
+                  </div>
+                  {field("Puissance de chauffage (kW)", "puissance_chauffage", "number")}
+                  {form.puissance_chauffage && parseFloat(form.puissance_chauffage) < 400 && <p className="text-[11px] text-red-400 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> Minimum 400 kW requis</p>}
+                </div>
+                {isAdmin && <div className="grid grid-cols-2 gap-3">{field("CA Prévisionnel (€)", "ca_previsionnel", "number")}{field("CA Réel (€)", "ca_reel", "number")}</div>}
+              </>;
+              // ===== HAUTE PRESSION FLOTTANTE =====
+              if (pCode === 'haute_pression') return <>
+                <div className="bg-pink-500/10 border border-pink-500/30 rounded-xl p-3 space-y-3">
+                  <p className="text-xs font-semibold text-pink-400 uppercase tracking-wider flex items-center gap-1"><Zap className="w-3 h-3"/> Critères d'éligibilité — Haute pression flottante</p>
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">Groupe froid existant</label>
+                    <Select value={form.groupe_froid_existant ? 'true' : 'false'} onChange={async e => {
+                      const val = e.target.value === 'true';
+                      const prev = form.groupe_froid_existant;
+                      setForm(f=>({...f,groupe_froid_existant:val}));
+                      lastSavedRef.current = { time: Date.now(), data: { groupe_froid_existant: val } };
+                      try { await onUpdate(prospect.id, { groupe_froid_existant: val }); refetchFull(); } catch(err) { showAlert(err.message,'error'); setForm(f=>({...f,groupe_froid_existant:prev})); }
+                    }} className="w-full">
+                      <option value="false">Non</option>
+                      <option value="true">Oui</option>
+                    </Select>
+                  </div>
+                  {field("Surface du groupe froid (m²)", "surface_groupe_froid", "number")}
+                  {form.surface_groupe_froid && parseFloat(form.surface_groupe_froid) < 15 && <p className="text-[11px] text-red-400 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> Minimum 15 m² requis</p>}
+                  {field("Puissance électrique (kW)", "puissance_electrique", "number")}
+                  {form.puissance_electrique && parseFloat(form.puissance_electrique) < 50 && <p className="text-[11px] text-red-400 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> Minimum 50 kW requis</p>}
+                </div>
+                {isAdmin && <div className="grid grid-cols-2 gap-3">{field("CA Prévisionnel (€)", "ca_previsionnel", "number")}{field("CA Réel (€)", "ca_reel", "number")}</div>}
+              </>;
+              // ===== VMC SERRE AGRICOLE =====
+              if (pCode === 'vmc_serre') return <>
+                <div className="bg-orange-500/10 border border-orange-500/30 rounded-xl p-3 space-y-3">
+                  <p className="text-xs font-semibold text-orange-400 uppercase tracking-wider flex items-center gap-1"><Zap className="w-3 h-3"/> Critères d'éligibilité — VMC serre agricole</p>
+                  {field("Surface serre (m²)", "surface_serre", "number")}
+                  {form.surface_serre && parseFloat(form.surface_serre) < 1000 && <p className="text-[11px] text-red-400 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> Minimum 1 000 m² requis</p>}
+                  <p className="text-[11px] text-slate-400">Si le client a plusieurs serres, ne prendre que celle de 1 000 m² minimum</p>
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">Serre électrifiée</label>
+                    <Select value={form.serre_electrifiee ? 'true' : 'false'} onChange={async e => {
+                      const val = e.target.value === 'true';
+                      const prev = form.serre_electrifiee;
+                      setForm(f=>({...f,serre_electrifiee:val}));
+                      lastSavedRef.current = { time: Date.now(), data: { serre_electrifiee: val } };
+                      try { await onUpdate(prospect.id, { serre_electrifiee: val }); refetchFull(); } catch(err) { showAlert(err.message,'error'); setForm(f=>({...f,serre_electrifiee:prev})); }
+                    }} className="w-full">
+                      <option value="false">Non</option>
+                      <option value="true">Oui</option>
+                    </Select>
+                    {!form.serre_electrifiee && <p className="text-[11px] text-amber-400 mt-1">La serre doit être électrifiée</p>}
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">Type de serre</label>
+                    <Select value={form.type_serre||''} onChange={async e => {
+                      const val = e.target.value || null;
+                      const prev = form.type_serre;
+                      setForm(f=>({...f,type_serre:val}));
+                      lastSavedRef.current = { time: Date.now(), data: { type_serre: val } };
+                      try { await onUpdate(prospect.id, { type_serre: val }); refetchFull(); } catch(err) { showAlert(err.message,'error'); setForm(f=>({...f,type_serre:prev})); }
+                    }} className="w-full">
+                      <option value="">— Sélectionner —</option>
+                      <option value="maraichere">Maraîchère</option>
+                      <option value="horticole">Horticole</option>
+                    </Select>
+                    {form.type_serre === 'horticole' && <p className="text-[11px] text-red-400 mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> NON ÉLIGIBLE — uniquement serres maraîchères</p>}
+                    <p className="text-[10px] text-slate-500 mt-0.5">Vérifier sur Pappers si maraîchère</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">Statut d'occupation</label>
+                    <Select value={form.statut_occupation||''} onChange={async e => {
+                      const val = e.target.value || null;
+                      const prev = form.statut_occupation;
+                      setForm(f=>({...f,statut_occupation:val}));
+                      lastSavedRef.current = { time: Date.now(), data: { statut_occupation: val } };
+                      try { await onUpdate(prospect.id, { statut_occupation: val }); refetchFull(); } catch(err) { showAlert(err.message,'error'); setForm(f=>({...f,statut_occupation:prev})); }
+                    }} className="w-full">
+                      <option value="">— Sélectionner —</option>
+                      <option value="proprietaire">Propriétaire</option>
+                      <option value="locataire">Locataire</option>
+                    </Select>
+                  </div>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={!!form.deja_prime_cee_deshumidificateur} onChange={async e => {
+                      const val = e.target.checked;
+                      const prev = form.deja_prime_cee_deshumidificateur;
+                      setForm(f=>({...f,deja_prime_cee_deshumidificateur:val}));
+                      lastSavedRef.current = { time: Date.now(), data: { deja_prime_cee_deshumidificateur: val } };
+                      try { await onUpdate(prospect.id, { deja_prime_cee_deshumidificateur: val }); refetchFull(); } catch(err) { showAlert(err.message,'error'); setForm(f=>({...f,deja_prime_cee_deshumidificateur:prev})); }
+                    }} className="rounded border-slate-500"/>
+                    <span className="text-sm text-slate-300">Déjà bénéficié d'une prime CEE pour déshumidificateur</span>
+                  </label>
+                  {form.deja_prime_cee_deshumidificateur && <p className="text-[11px] text-red-400 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> NON ÉLIGIBLE — prime déjà perçue</p>}
+                </div>
+                {isAdmin && <div className="grid grid-cols-2 gap-3">{field("CA Prévisionnel (€)", "ca_previsionnel", "number")}{field("CA Réel (€)", "ca_reel", "number")}</div>}
+              </>;
+              // ===== DÉSHUMIDIFICATEUR SERRE AGRICOLE =====
+              if (pCode === 'deshumidificateur') return <>
+                <div className="bg-teal-500/10 border border-teal-500/30 rounded-xl p-3 space-y-3">
+                  <p className="text-xs font-semibold text-teal-400 uppercase tracking-wider flex items-center gap-1"><Zap className="w-3 h-3"/> Critères d'éligibilité — Déshumidificateur serre</p>
+                  <p className="text-[11px] text-teal-300 font-medium">SERRES MARAÎCHÈRES UNIQUEMENT</p>
+                  {field("Surface serre (m²)", "surface_serre", "number")}
+                  {form.surface_serre && parseFloat(form.surface_serre) < 1000 && <p className="text-[11px] text-red-400 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> Minimum 1 000 m² requis</p>}
+                  <p className="text-[11px] text-slate-400">Si le client a plusieurs serres, ne prendre que celle de 1 000 m² minimum</p>
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">Serre électrifiée</label>
+                    <Select value={form.serre_electrifiee ? 'true' : 'false'} onChange={async e => {
+                      const val = e.target.value === 'true';
+                      const prev = form.serre_electrifiee;
+                      setForm(f=>({...f,serre_electrifiee:val}));
+                      lastSavedRef.current = { time: Date.now(), data: { serre_electrifiee: val } };
+                      try { await onUpdate(prospect.id, { serre_electrifiee: val }); refetchFull(); } catch(err) { showAlert(err.message,'error'); setForm(f=>({...f,serre_electrifiee:prev})); }
+                    }} className="w-full">
+                      <option value="false">Non</option>
+                      <option value="true">Oui</option>
+                    </Select>
+                    {!form.serre_electrifiee && <p className="text-[11px] text-amber-400 mt-1">La serre doit être électrifiée</p>}
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">Type de serre</label>
+                    <Select value={form.type_serre||''} onChange={async e => {
+                      const val = e.target.value || null;
+                      const prev = form.type_serre;
+                      setForm(f=>({...f,type_serre:val}));
+                      lastSavedRef.current = { time: Date.now(), data: { type_serre: val } };
+                      try { await onUpdate(prospect.id, { type_serre: val }); refetchFull(); } catch(err) { showAlert(err.message,'error'); setForm(f=>({...f,type_serre:prev})); }
+                    }} className="w-full">
+                      <option value="">— Sélectionner —</option>
+                      <option value="maraichere">Maraîchère</option>
+                      <option value="horticole">Horticole</option>
+                    </Select>
+                    {form.type_serre === 'horticole' && <p className="text-[11px] text-red-400 mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> NON ÉLIGIBLE — uniquement serres maraîchères</p>}
+                    <p className="text-[10px] text-slate-500 mt-0.5">Vérifier sur Pappers si maraîchère</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">Statut d'occupation</label>
+                    <Select value={form.statut_occupation||''} onChange={async e => {
+                      const val = e.target.value || null;
+                      const prev = form.statut_occupation;
+                      setForm(f=>({...f,statut_occupation:val}));
+                      lastSavedRef.current = { time: Date.now(), data: { statut_occupation: val } };
+                      try { await onUpdate(prospect.id, { statut_occupation: val }); refetchFull(); } catch(err) { showAlert(err.message,'error'); setForm(f=>({...f,statut_occupation:prev})); }
+                    }} className="w-full">
+                      <option value="">— Sélectionner —</option>
+                      <option value="proprietaire">Propriétaire</option>
+                      <option value="locataire">Locataire</option>
+                    </Select>
+                  </div>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={!!form.deja_prime_cee_deshumidificateur} onChange={async e => {
+                      const val = e.target.checked;
+                      const prev = form.deja_prime_cee_deshumidificateur;
+                      setForm(f=>({...f,deja_prime_cee_deshumidificateur:val}));
+                      lastSavedRef.current = { time: Date.now(), data: { deja_prime_cee_deshumidificateur: val } };
+                      try { await onUpdate(prospect.id, { deja_prime_cee_deshumidificateur: val }); refetchFull(); } catch(err) { showAlert(err.message,'error'); setForm(f=>({...f,deja_prime_cee_deshumidificateur:prev})); }
+                    }} className="rounded border-slate-500"/>
+                    <span className="text-sm text-slate-300">Déjà bénéficié d'une prime CEE pour déshumidificateur</span>
+                  </label>
+                  {form.deja_prime_cee_deshumidificateur && <p className="text-[11px] text-red-400 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> NON ÉLIGIBLE — prime déjà perçue</p>}
+                </div>
+                {isAdmin && <div className="grid grid-cols-2 gap-3">{field("CA Prévisionnel (€)", "ca_previsionnel", "number")}{field("CA Réel (€)", "ca_reel", "number")}</div>}
+              </>;
               return null;
             })()}
             {/* CHAMPS COMMUNS À TOUS LES PRODUITS */}
-            {/* Type logement */}
+            {/* Type de projet — pro/particulier */}
             <div>
+              <label className="block text-xs text-slate-400 mb-1">Type de projet</label>
+              <Select value={form.type_projet||''} onChange={async e => {
+                const val = e.target.value || null;
+                const prev = form.type_projet;
+                setForm(f=>({...f,type_projet:val}));
+                lastSavedRef.current = { time: Date.now(), data: { type_projet: val } };
+                try { await onUpdate(prospect.id, { type_projet: val }); refetchFull(); } catch(err) { showAlert(err.message,'error'); setForm(f=>({...f,type_projet:prev})); }
+              }} className="w-full">
+                <option value="">— Sélectionner —</option>
+                {typeProjetOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </Select>
+            </div>
+            {/* Type de cible — dropdown */}
+            {form.type_projet === 'pro' && <div>
+              <label className="block text-xs text-slate-400 mb-1">Type de cible</label>
+              <Select value={form.type_cible||''} onChange={async e => {
+                const val = e.target.value || null;
+                const prev = form.type_cible;
+                setForm(f=>({...f,type_cible:val}));
+                lastSavedRef.current = { time: Date.now(), data: { type_cible: val } };
+                try { await onUpdate(prospect.id, { type_cible: val }); refetchFull(); } catch(err) { showAlert(err.message,'error'); setForm(f=>({...f,type_cible:prev})); }
+              }} className="w-full">
+                <option value="">— Sélectionner —</option>
+                {typeCibleOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </Select>
+            </div>}
+            {/* Type logement — particulier */}
+            {form.type_projet === 'particulier' && <div>
               <label className="block text-xs text-slate-400 mb-1">Type de logement</label>
               <Select value={form.type_logement||''} onChange={async e => {
                 const val = e.target.value || null;
@@ -1877,9 +2144,9 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
                 <option value="maison">Maison</option>
                 <option value="appartement">Appartement</option>
               </Select>
-            </div>
-            {/* Type de chauffage existant */}
-            <div>
+            </div>}
+            {/* Type de chauffage existant — masqué pour les produits qui ont déjà leur propre champ chauffage inline */}
+            {!['destrat_tertiaire','destrat_industriel','haute_pression','vmc_serre','deshumidificateur'].includes(getProductCode(prospect, products)) && <div>
               <label className="block text-xs text-slate-400 mb-1">Type de chauffage existant</label>
               <Select value={form.type_chauffage||''} onChange={async e => {
                 const val = e.target.value || null;
@@ -1891,7 +2158,7 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
                 <option value="">— Aucun —</option>
                 {typeChauffageOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </Select>
-            </div>
+            </div>}
             {/* DATE D'AUDIT — instant save */}
             <div>
               <label className="block text-xs text-slate-400 mb-1">Date d'audit</label>
@@ -3521,14 +3788,50 @@ const ProspectModal = memo(({ open, onClose, onSubmit, categories, statuses, pro
             </div>
           </div>
         </>; }
+        // ===== DESTRATIFICATEUR TERTIAIRE (modal) =====
+        if (pCode === 'destrat_tertiaire') return <div className="bg-slate-700/30 rounded-xl p-3 space-y-3">
+          <p className="text-xs font-semibold text-violet-400 uppercase tracking-wider">Destrat. tertiaire</p>
+          <Input placeholder="Hauteur sous plafond (m) — min 5m" type="number" value={form.hauteur_sous_plafond||''} onChange={e=>setForm(f=>({...f,hauteur_sous_plafond:e.target.value}))} className="py-3"/>
+          <Select value={form.type_chauffage||''} onChange={e=>setForm(f=>({...f,type_chauffage:e.target.value}))} className="py-3"><option value="">Type chauffage (gaz/fuel)</option><option value="gaz">Gaz</option><option value="fuel">Fuel</option></Select>
+          <Input placeholder="Puissance chauffage (kW) — min 200kW" type="number" value={form.puissance_chauffage||''} onChange={e=>setForm(f=>({...f,puissance_chauffage:e.target.value}))} className="py-3"/>
+        </div>;
+        // ===== DESTRATIFICATEUR INDUSTRIEL (modal) =====
+        if (pCode === 'destrat_industriel') return <div className="bg-slate-700/30 rounded-xl p-3 space-y-3">
+          <p className="text-xs font-semibold text-indigo-400 uppercase tracking-wider">Destrat. industriel</p>
+          <Input placeholder="Hauteur sous plafond (m) — min 5m" type="number" value={form.hauteur_sous_plafond||''} onChange={e=>setForm(f=>({...f,hauteur_sous_plafond:e.target.value}))} className="py-3"/>
+          <Select value={form.type_chauffage||''} onChange={e=>setForm(f=>({...f,type_chauffage:e.target.value}))} className="py-3"><option value="">Type chauffage (gaz/fuel)</option><option value="gaz">Gaz</option><option value="fuel">Fuel</option></Select>
+          <Input placeholder="Puissance chauffage (kW) — min 400kW" type="number" value={form.puissance_chauffage||''} onChange={e=>setForm(f=>({...f,puissance_chauffage:e.target.value}))} className="py-3"/>
+        </div>;
+        // ===== HAUTE PRESSION FLOTTANTE (modal) =====
+        if (pCode === 'haute_pression') return <div className="bg-slate-700/30 rounded-xl p-3 space-y-3">
+          <p className="text-xs font-semibold text-pink-400 uppercase tracking-wider">Haute pression flottante</p>
+          <Select value={form.groupe_froid_existant ? 'true' : 'false'} onChange={e=>setForm(f=>({...f,groupe_froid_existant:e.target.value==='true'}))} className="py-3"><option value="false">Groupe froid existant : Non</option><option value="true">Groupe froid existant : Oui</option></Select>
+          <Input placeholder="Surface groupe froid (m²) — min 15m²" type="number" value={form.surface_groupe_froid||''} onChange={e=>setForm(f=>({...f,surface_groupe_froid:e.target.value}))} className="py-3"/>
+          <Input placeholder="Puissance électrique (kW) — min 50kW" type="number" value={form.puissance_electrique||''} onChange={e=>setForm(f=>({...f,puissance_electrique:e.target.value}))} className="py-3"/>
+        </div>;
+        // ===== VMC SERRE AGRICOLE (modal) =====
+        if (pCode === 'vmc_serre') return <div className="bg-slate-700/30 rounded-xl p-3 space-y-3">
+          <p className="text-xs font-semibold text-orange-400 uppercase tracking-wider">VMC serre agricole</p>
+          <Input placeholder="Surface serre (m²) — min 1 000m²" type="number" value={form.surface_serre||''} onChange={e=>setForm(f=>({...f,surface_serre:e.target.value}))} className="py-3"/>
+          <Select value={form.serre_electrifiee ? 'true' : 'false'} onChange={e=>setForm(f=>({...f,serre_electrifiee:e.target.value==='true'}))} className="py-3"><option value="false">Serre électrifiée : Non</option><option value="true">Serre électrifiée : Oui</option></Select>
+          <Select value={form.type_serre||''} onChange={e=>setForm(f=>({...f,type_serre:e.target.value}))} className="py-3"><option value="">Type de serre</option><option value="maraichere">Maraîchère</option><option value="horticole">Horticole</option></Select>
+          <Select value={form.statut_occupation||''} onChange={e=>setForm(f=>({...f,statut_occupation:e.target.value}))} className="py-3"><option value="">Statut occupation</option><option value="proprietaire">Propriétaire</option><option value="locataire">Locataire</option></Select>
+        </div>;
+        // ===== DÉSHUMIDIFICATEUR (modal) =====
+        if (pCode === 'deshumidificateur') return <div className="bg-slate-700/30 rounded-xl p-3 space-y-3">
+          <p className="text-xs font-semibold text-teal-400 uppercase tracking-wider">Déshumidificateur serre</p>
+          <Input placeholder="Surface serre (m²) — min 1 000m²" type="number" value={form.surface_serre||''} onChange={e=>setForm(f=>({...f,surface_serre:e.target.value}))} className="py-3"/>
+          <Select value={form.serre_electrifiee ? 'true' : 'false'} onChange={e=>setForm(f=>({...f,serre_electrifiee:e.target.value==='true'}))} className="py-3"><option value="false">Serre électrifiée : Non</option><option value="true">Serre électrifiée : Oui</option></Select>
+          <Select value={form.type_serre||''} onChange={e=>setForm(f=>({...f,type_serre:e.target.value}))} className="py-3"><option value="">Type de serre</option><option value="maraichere">Maraîchère</option><option value="horticole">Horticole</option></Select>
+          <Select value={form.statut_occupation||''} onChange={e=>setForm(f=>({...f,statut_occupation:e.target.value}))} className="py-3"><option value="">Statut occupation</option><option value="proprietaire">Propriétaire</option><option value="locataire">Locataire</option></Select>
+        </div>;
         return null;
       })()}
       {/* Champs communs */}
-      <div className="grid grid-cols-2 gap-3">
-        <Select value={form.type_logement||''} onChange={e=>setForm(f=>({...f,type_logement:e.target.value}))} className="py-3"><option value="">Type de logement</option><option value="maison">Maison</option><option value="appartement">Appartement</option></Select>
-        <Select value={form.type_projet||''} onChange={e=>setForm(f=>({...f,type_projet:e.target.value}))} className="py-3"><option value="">Type de projet</option><option value="particulier">Particulier</option><option value="professionnel">Professionnel</option></Select>
-      </div>
-      <Select value={form.type_chauffage||''} onChange={e=>setForm(f=>({...f,type_chauffage:e.target.value}))} className="py-3"><option value="">Type chauffage existant</option>{typeChauffageOptions.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</Select>
+      <Select value={form.type_projet||''} onChange={e=>setForm(f=>({...f,type_projet:e.target.value}))} className="py-3"><option value="">Type de projet</option>{typeProjetOptions.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</Select>
+      {form.type_projet === 'pro' && <Select value={form.type_cible||''} onChange={e=>setForm(f=>({...f,type_cible:e.target.value}))} className="py-3"><option value="">Type de cible</option>{typeCibleOptions.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</Select>}
+      {form.type_projet === 'particulier' && <Select value={form.type_logement||''} onChange={e=>setForm(f=>({...f,type_logement:e.target.value}))} className="py-3"><option value="">Type de logement</option><option value="maison">Maison</option><option value="appartement">Appartement</option></Select>}
+      {(() => { const selP = products.find(p => p.id === form.product_id); const pc = selP ? getProductCode({ product: selP }, products) : null; return !['destrat_tertiaire','destrat_industriel','haute_pression','vmc_serre','deshumidificateur'].includes(pc); })() && <Select value={form.type_chauffage||''} onChange={e=>setForm(f=>({...f,type_chauffage:e.target.value}))} className="py-3"><option value="">Type chauffage existant</option>{typeChauffageOptions.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</Select>}
       <Btn variant="primary" size="lg" className="w-full justify-center" type="submit" disabled={saving}>{saving?<><Loader2 className="w-4 h-4 animate-spin"/> Création...</>:'Créer le prospect'}</Btn>
     </form>
   </Modal>;
