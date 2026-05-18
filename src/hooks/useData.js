@@ -44,6 +44,7 @@ export function useProspects() {
     installerIds: [], userIds: [], sourceIds: [], unassigned: false, noProduct: false,
     noInstaller: false, dateFrom: null, dateTo: null,
     clientFilter: 'all', // 'all' | 'client' | 'prospect'
+    typeProjetFilter: 'all', // 'all' | 'pro' | 'particulier'
     transmisFilter: 'all', // 'all' | 'oui' | 'non'
     sortCol: 'updated_at', sortDir: 'desc', page: 1, perPage: 50
   });
@@ -93,6 +94,8 @@ export function useProspects() {
     }
     if (p.clientFilter === 'client') query = query.eq('is_client', true);
     if (p.clientFilter === 'prospect') query = query.eq('is_client', false);
+    if (p.typeProjetFilter === 'pro') query = query.eq('type_projet', 'pro');
+    if (p.typeProjetFilter === 'particulier') query = query.eq('type_projet', 'particulier');
     if (p.transmisFilter === 'oui') query = query.eq('transmis_installateur', true);
     if (p.transmisFilter === 'non') query = query.eq('transmis_installateur', false);
     if (p.dateFrom) query = query.gte('created_at', p.dateFrom);
@@ -223,7 +226,7 @@ export function useProspects() {
   const setFilter = useCallback((key, val) => setParams(p => ({ ...p, [key]: val, page: 1 })), []);
   const setPage = useCallback(page => setParams(p => ({ ...p, page })), []);
   const setSort = useCallback(col => setParams(p => ({ ...p, sortCol: col, sortDir: p.sortCol === col && p.sortDir === 'asc' ? 'desc' : 'asc', page: 1 })), []);
-  const resetFilters = useCallback(() => setParams(p => ({ ...p, search: '', productIds: [], categoryIds: [], statusIds: [], installerIds: [], userIds: [], sourceIds: [], unassigned: false, noProduct: false, noInstaller: false, dateFrom: null, dateTo: null, clientFilter: 'all', transmisFilter: 'all', page: 1 })), []);
+  const resetFilters = useCallback(() => setParams(p => ({ ...p, search: '', productIds: [], categoryIds: [], statusIds: [], installerIds: [], userIds: [], sourceIds: [], unassigned: false, noProduct: false, noInstaller: false, dateFrom: null, dateTo: null, clientFilter: 'all', typeProjetFilter: 'all', transmisFilter: 'all', page: 1 })), []);
 
   /* --- ADD PROSPECT --- */
   const addProspect = useCallback(async (data) => {
@@ -494,16 +497,19 @@ export function useCounts() {
           return;
         }
         if (data) setCounts(data);
-        // Supplement with source counts (not in RPC)
+        // Supplement with source + type_projet counts (not in RPC)
         try {
-          const { data: srcRows } = await supabase.from('prospects').select('source_id');
+          const { data: srcRows } = await supabase.from('prospects').select('source_id,type_projet');
           if (srcRows) {
             const by_source = {};
+            let proCount = 0, partCount = 0;
             srcRows.forEach(p => {
               if (p.source_id) by_source[p.source_id] = (by_source[p.source_id]||0) + 1;
               else by_source['none'] = (by_source['none']||0) + 1;
+              if (p.type_projet === 'pro') proCount++;
+              if (p.type_projet === 'particulier') partCount++;
             });
-            setCounts(c => ({ ...c, by_source }));
+            setCounts(c => ({ ...c, by_source, type_projet_pro: proCount, type_projet_particulier: partCount }));
           }
         } catch(e) { /* ignore */ }
       } else {
@@ -528,6 +534,8 @@ export function useCounts() {
             clients: ps.filter(p => p.is_client).length,
             prospects: ps.filter(p => !p.is_client).length,
             transmis: ps.filter(p => p.transmis_installateur).length,
+            type_projet_pro: ps.filter(p => p.type_projet === 'pro').length,
+            type_projet_particulier: ps.filter(p => p.type_projet === 'particulier').length,
             by_status, by_product, by_category, by_installer, by_source,
             by_user: {}, unassigned: 0
           });

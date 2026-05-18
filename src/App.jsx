@@ -8,7 +8,7 @@ import {
   List, Loader2, Navigation, Truck, Crown, CalendarDays, CalendarCheck, Euro,
   Sun, Moon, Layers, ArrowUpRight, ArrowDownRight, Award, Zap, Activity,
   Trophy, Banknote, GitBranch, AlertTriangle, LogIn, Shield, UserX, Timer,
-  MessageSquare, Hash, Lock
+  MessageSquare, Hash, Lock, Briefcase
 } from 'lucide-react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -911,6 +911,16 @@ const MainApp = memo(({ themeBtn }) => {
             </div>
           </div>
 
+          {/* Type de projet */}
+          <div>
+            <div className="text-[10px] font-semibold text-slate-500 uppercase mb-1.5 flex items-center gap-1.5"><Briefcase className="w-3 h-3"/> Type de projet</div>
+            <div className="space-y-0.5">
+              <FilterButton active={params.typeProjetFilter==='all'} onClick={()=>setFilter('typeProjetFilter','all')} count={counts.total}>Tous</FilterButton>
+              <FilterButton active={params.typeProjetFilter==='pro'} onClick={()=>setFilter('typeProjetFilter','pro')} count={counts.type_projet_pro||0} color="#8B5CF6">Professionnel</FilterButton>
+              <FilterButton active={params.typeProjetFilter==='particulier'} onClick={()=>setFilter('typeProjetFilter','particulier')} count={counts.type_projet_particulier||0} color="#EC4899">Particulier</FilterButton>
+            </div>
+          </div>
+
           {/* Transmis à installateur */}
           <div>
             <div className="text-[10px] font-semibold text-slate-500 uppercase mb-1.5 flex items-center gap-1.5"><Truck className="w-3 h-3"/> Transmis installateur</div>
@@ -985,7 +995,7 @@ const MainApp = memo(({ themeBtn }) => {
             </div>
           </div>
 
-          {(params.productIds.length>0||params.categoryIds.length>0||params.statusIds.length>0||params.installerIds.length>0||params.userIds.length>0||params.dateFrom||params.dateTo||params.clientFilter!=='all'||params.transmisFilter!=='all')&&
+          {(params.productIds.length>0||params.categoryIds.length>0||params.statusIds.length>0||params.installerIds.length>0||params.userIds.length>0||params.dateFrom||params.dateTo||params.clientFilter!=='all'||params.typeProjetFilter!=='all'||params.transmisFilter!=='all')&&
             <button onClick={()=>{resetFilters();setSearchInput('');}} className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 rounded-lg"><RotateCcw className="w-3 h-3"/> Réinitialiser</button>}
         </div>
 
