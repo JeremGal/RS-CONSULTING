@@ -180,8 +180,13 @@ export function useProspects() {
           const result = data || { data: [], total: 0 };
           const rows = Array.isArray(result.data) ? result.data : [];
           log('RPC OK:', rows.length, 'rows, total:', result.total);
-          const filteredRows = rows.map(transformProspect);
-          const filteredTotal = result.total || 0;
+          let filteredRows = rows.map(transformProspect);
+          let filteredTotal = result.total || 0;
+          // Post-filter type_projet (not supported by RPC)
+          if (pp.typeProjetFilter !== 'all') {
+            filteredRows = filteredRows.filter(r => r.type_projet === pp.typeProjetFilter);
+            filteredTotal = filteredRows.length;
+          }
           setProspects(filteredRows);
           setTotal(filteredTotal);
           initialLoadDone.current = true;

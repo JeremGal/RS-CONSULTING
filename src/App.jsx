@@ -916,8 +916,8 @@ const MainApp = memo(({ themeBtn }) => {
             <div className="text-[10px] font-semibold text-slate-500 uppercase mb-1.5 flex items-center gap-1.5"><Briefcase className="w-3 h-3"/> Type de projet</div>
             <div className="space-y-0.5">
               <FilterButton active={params.typeProjetFilter==='all'} onClick={()=>setFilter('typeProjetFilter','all')} count={counts.total}>Tous</FilterButton>
-              <FilterButton active={params.typeProjetFilter==='pro'} onClick={()=>setFilter('typeProjetFilter','pro')} count={counts.type_projet_pro||0} color="#8B5CF6">Professionnel</FilterButton>
-              <FilterButton active={params.typeProjetFilter==='particulier'} onClick={()=>setFilter('typeProjetFilter','particulier')} count={counts.type_projet_particulier||0} color="#EC4899">Particulier</FilterButton>
+              <FilterButton active={params.typeProjetFilter==='pro'} onClick={()=>setFilter('typeProjetFilter','pro')} count={counts.type_projet_pro||0} color="#2563EB">Professionnel</FilterButton>
+              <FilterButton active={params.typeProjetFilter==='particulier'} onClick={()=>setFilter('typeProjetFilter','particulier')} count={counts.type_projet_particulier||0} color="#F59E0B">Particulier</FilterButton>
             </div>
           </div>
 
