@@ -1062,7 +1062,7 @@ const MainApp = memo(({ themeBtn }) => {
                     <th className="px-2 py-3 hidden lg:table-cell">Téléphone</th>
                     <th className="px-2 py-3 hidden xl:table-cell cursor-pointer hover:text-white" onClick={()=>setSort('postal_code')}>CP</th>
                     <th className="px-2 py-3 hidden md:table-cell">Produit</th>
-                    <th className="px-2 py-3 hidden lg:table-cell">Secteur</th>
+                    <th className="px-2 py-3 hidden lg:table-cell">Type projet</th>
                     <th className="px-2 py-3 hidden lg:table-cell">Installateur</th>
                     <th className="px-2 py-3">Statut</th>
 
@@ -1083,7 +1083,7 @@ const MainApp = memo(({ themeBtn }) => {
                     <td className="px-2 py-2.5 text-slate-300 text-sm hidden lg:table-cell">{p.phone||'—'}</td>
                     <td className="px-2 py-2.5 text-slate-300 text-sm hidden xl:table-cell">{p.postal_code||'—'}</td>
                     <td className="px-2 py-2.5 hidden md:table-cell">{p.product&&<Badge color={p.product.color} small>{p.product.name}</Badge>}</td>
-                    <td className="px-2 py-2.5 hidden lg:table-cell">{p.category&&<Badge color={p.category.color} small>{p.category.name}</Badge>}</td>
+                    <td className="px-2 py-2.5 hidden lg:table-cell text-sm text-slate-300">{p.type_projet === 'pro' ? 'Professionnel' : p.type_projet === 'particulier' ? 'Particulier' : <span className="text-slate-600">—</span>}</td>
                     <td className="px-2 py-2.5 hidden lg:table-cell text-sm text-slate-300">{p.installer?.name||<span className="text-slate-600">—</span>}</td>
                     <td className="px-2 py-2.5" onClick={e=>e.stopPropagation()}><StatusDropdown currentId={p.status_id} statuses={statuses} onChange={sid=>handleQuickStatus(p.id,sid)}/></td>
 
@@ -1657,7 +1657,7 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
               }} className="w-full">
                 <option value="">— Aucun —</option>
                 <option value="particulier">Particulier</option>
-                <option value="professionnel">Professionnel</option>
+                <option value="pro">Professionnel</option>
               </Select>
             </div>
             {editing && field("Source", "source")}
