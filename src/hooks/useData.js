@@ -1488,13 +1488,15 @@ export function useChat(channel) {
     try {
       const { data, error } = await supabase.from('chat_messages').insert([{
         channel, user_id: profile.id, content: clean
-      }]).select('*, profile:profiles(id, first_name, last_name, role)').single();
+      }]).select('id, channel, user_id, content, created_at').single();
       if (error) throw error;
+      // Attach local profile info so UI renders correctly immediately
+      const row = { ...data, profile: { id: profile.id, first_name: profile.first_name, last_name: profile.last_name, role: profile.role } };
       // Replace temp row with real row from server
       setMessages(prev => {
         // If realtime already added the real row, just remove the temp one
-        if (prev.some(m => m.id === data.id)) return prev.filter(m => m.id !== tempId);
-        return prev.map(m => m.id === tempId ? data : m);
+        if (prev.some(m => m.id === row.id)) return prev.filter(m => m.id !== tempId);
+        return prev.map(m => m.id === tempId ? row : m);
       });
     } catch (e) {
       // Rollback optimistic on error
