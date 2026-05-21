@@ -8,7 +8,7 @@ import {
   List, Loader2, Navigation, Truck, Crown, CalendarDays, CalendarCheck, Euro,
   Sun, Moon, Layers, ArrowUpRight, ArrowDownRight, Award, Zap, Activity,
   Trophy, Banknote, GitBranch, AlertTriangle, LogIn, Shield, UserX, Timer,
-  MessageSquare, Hash, Lock, Briefcase
+  MessageSquare, Hash, Lock, Briefcase, EyeOff, PlusCircle
 } from 'lucide-react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -19,7 +19,7 @@ import {
   useProspects, useCounts, useReferenceData, useNotes, useDocuments, useReminders,
   useActivityLog, useMapData, useSiretLookup, useAddressSearch, useUserStats, useDiagnostic,
   usePlanning, useDevisStats, useSites, logEnhanced, useGlobalTimeline, useAlerts, usePresence,
-  useChat, useUnreadChat
+  useChat, useUnreadChat, useChatChannels
 } from './hooks/useData';
 
 // =====================================================
@@ -610,7 +610,9 @@ const MainApp = memo(({ themeBtn }) => {
   const { markers } = useMapData(params);
   const { results: diagResults, runDiagnostic } = useDiagnostic();
   const onlineUsers = usePresence(profile?.id, profile);
-  const unreadChat = useUnreadChat();
+  const chatChannels = useChatChannels();
+  const chatChannelIds = useMemo(() => chatChannels.channels.map(c => c.id), [chatChannels.channels]);
+  const unreadChat = useUnreadChat(chatChannelIds);
   const [chatToast, setChatToast] = useState(null); // { channel, pingKey }
 
   const [view, setView] = useState('list');
@@ -838,7 +840,7 @@ const MainApp = memo(({ themeBtn }) => {
   if (view==='stats' && isAdmin) return <><Alert alert={alert} onClose={clearAlert}/><StatsPage onBack={()=>setView('list')} statuses={statuses} products={products} categories={categories} counts={counts} isAdmin={isAdmin} allUsers={users} onOpenProspect={openProspect} onlineUsers={onlineUsers}/></>;
   if (view==='activity') return <><Alert alert={alert} onClose={clearAlert}/><ActivityPage onBack={()=>setView('list')}/></>;
   if (view==='planning') return <><Alert alert={alert} onClose={clearAlert}/><PlanningPage onBack={()=>setView('list')} onOpenProspect={openProspect} reminders={reminders} isAdmin={isAdmin}/></>;
-  if (view==='chat') return <><Alert alert={alert} onClose={clearAlert}/><ChatPage onBack={()=>setView('list')} allUsers={users} onlineUsers={onlineUsers} unreadChat={unreadChat}/></>;
+  if (view==='chat') return <><Alert alert={alert} onClose={clearAlert}/><ChatPage onBack={()=>setView('list')} allUsers={users} onlineUsers={onlineUsers} unreadChat={unreadChat} chatChannels={chatChannels} isAdmin={isAdmin}/></>;
 
   // === MAIN LIST VIEW ===
   return (
@@ -2551,7 +2553,7 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
         </div>}
       </div>
       {/* Chat équipe — panneau latéral */}
-      {showChatPanel && <ChatSidePanel onClose={()=>setShowChatPanel(false)} allUsers={users} onlineUsers={onlineUsers} unreadChat={unreadChat}/>}
+      {showChatPanel && <ChatSidePanel onClose={()=>setShowChatPanel(false)} allUsers={users} onlineUsers={onlineUsers} unreadChat={unreadChat} chatChannels={chatChannels} isAdmin={isAdmin}/>}
     </div>
   );
 });
@@ -2559,37 +2561,59 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
 // =====================================================
 // CHAT SIDE PANEL — slide-over réutilisable depuis n'importe quelle page
 // =====================================================
-const ChatSidePanel = memo(({ onClose, allUsers, onlineUsers, unreadChat }) => {
-  // Open on the channel that has the most unread messages, if any
-  const initialChannel = (() => {
+const ChatSidePanel = memo(({ onClose, allUsers, onlineUsers, unreadChat, chatChannels, isAdmin }) => {
+  const { publicChannels, dmChannels, openDm } = chatChannels || {};
+  const { profile } = useAuth();
+
+  const initialChannel = useMemo(() => {
     const u = unreadChat?.unread || {};
-    const maxCh = Object.keys(u).reduce((a,b) => (u[a]||0) >= (u[b]||0) ? a : b, 'general');
-    return (u[maxCh] || 0) > 0 ? maxCh : 'general';
-  })();
+    const all = [...(publicChannels||[]), ...(dmChannels||[])];
+    if (all.length === 0) return 'general';
+    const maxCh = all.reduce((best, ch) => (u[ch.id]||0) > (u[best.id]||0) ? ch : best, all[0]);
+    return (u[maxCh.id] || 0) > 0 ? maxCh.id : (publicChannels?.[0]?.id || 'general');
+  }, []);
+
   const [activeChannel, setActiveChannel] = useState(initialChannel);
+  const [tab, setTab] = useState('channels'); // 'channels' | 'dms'
   const { messages, loading, sendMessage, deleteMessage } = useChat(activeChannel);
   const [msg, setMsg] = useState('');
   const [sending, setSending] = useState(false);
   const endRef = useRef(null);
-  const { profile } = useAuth();
-  // Mark channel as read whenever it becomes active (and on initial mount)
+
   useEffect(() => { unreadChat?.markRead?.(activeChannel); }, [activeChannel, unreadChat]);
-  // Also mark as read whenever new messages arrive while panel is open on this channel
   useEffect(() => {
     if (messages.length > 0) unreadChat?.markRead?.(activeChannel);
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, activeChannel, unreadChat]);
+
   const handleSend = async () => {
     if (!msg.trim() || sending) return;
     setSending(true);
     try { await sendMessage(msg); setMsg(''); } catch(e) { console.warn(e); }
     finally { setSending(false); }
   };
-  const channels = [
-    { id: 'general', label: 'Général', color: '#10B981' },
-    { id: 'iti', label: 'ITI', color: '#3B82F6' },
-    { id: 'pac', label: 'PAC', color: '#EF4444' },
-  ];
+
+  const handleOpenDm = async (userId) => {
+    try {
+      const dm = await openDm(userId);
+      if (dm) { setActiveChannel(dm.id); setTab('dms'); }
+    } catch(e) { console.warn(e); }
+  };
+
+  const getDmName = (dm) => {
+    const otherId = (dm.members || []).find(id => id !== profile?.id);
+    if (otherId) { const u = (allUsers||[]).find(x => x.id === otherId); if (u) return `${u.first_name} ${u.last_name}`; }
+    if (isAdmin && dm.members?.length === 2) { return dm.members.map(id => { const u = (allUsers||[]).find(x => x.id === id); return u ? u.first_name : '?'; }).join(' ↔ '); }
+    return 'MP';
+  };
+
+  const isDm = activeChannel.startsWith('dm_');
+  const activeChObj = [...(publicChannels||[]), ...(dmChannels||[])].find(c => c.id === activeChannel);
+  const activeLabel = isDm ? getDmName(activeChObj || { members: [] }) : (activeChObj?.name || activeChannel);
+
+  const dmUnread = (dmChannels||[]).reduce((s, dm) => s + (unreadChat?.unread?.[dm.id] || 0), 0);
+  const chUnread = (publicChannels||[]).reduce((s, ch) => s + (unreadChat?.unread?.[ch.id] || 0), 0);
+
   return <div className="fixed inset-0 z-50 flex" onClick={onClose}>
     <div className="flex-1 bg-black/40"/>
     <div className="w-[440px] max-w-full bg-slate-900 border-l border-slate-700 flex flex-col shadow-2xl" onClick={e=>e.stopPropagation()}>
@@ -2597,14 +2621,39 @@ const ChatSidePanel = memo(({ onClose, allUsers, onlineUsers, unreadChat }) => {
         <div className="flex items-center gap-2"><MessageSquare className="w-4 h-4 text-emerald-400"/><h2 className="text-sm font-semibold text-white">Chat équipe</h2></div>
         <button onClick={onClose} className="p-1.5 hover:bg-slate-800 rounded text-slate-400"><X className="w-4 h-4"/></button>
       </div>
-      <div className="px-4 py-2 border-b border-slate-700 flex gap-1.5">
-        {channels.map(ch => {
+      {/* Tabs: Salons | Messages privés */}
+      <div className="px-4 py-2 border-b border-slate-700 flex gap-3">
+        <button onClick={() => setTab('channels')} className={cn("relative text-xs font-medium pb-1 transition-colors", tab === 'channels' ? "text-emerald-400 border-b-2 border-emerald-400" : "text-slate-400 hover:text-white")}>
+          # Salons {chUnread > 0 && <span className="ml-1 inline-flex items-center justify-center min-w-[14px] h-3.5 px-0.5 bg-red-500 rounded-full text-[8px] text-white font-bold">{chUnread}</span>}
+        </button>
+        <button onClick={() => setTab('dms')} className={cn("relative text-xs font-medium pb-1 transition-colors", tab === 'dms' ? "text-purple-400 border-b-2 border-purple-400" : "text-slate-400 hover:text-white")}>
+          <Lock className="w-3 h-3 inline mr-0.5 mb-0.5"/> MP {dmUnread > 0 && <span className="ml-1 inline-flex items-center justify-center min-w-[14px] h-3.5 px-0.5 bg-red-500 rounded-full text-[8px] text-white font-bold">{dmUnread}</span>}
+        </button>
+      </div>
+      {/* Channel / DM picker row */}
+      <div className="px-4 py-2 border-b border-slate-700 flex gap-1.5 flex-wrap">
+        {tab === 'channels' && (publicChannels||[]).map(ch => {
           const cnt = unreadChat?.unread?.[ch.id] || 0;
-          return <button key={ch.id} onClick={()=>setActiveChannel(ch.id)} className={cn("relative px-2.5 py-1 rounded text-xs font-medium transition-colors", activeChannel===ch.id?"bg-slate-700 text-white":"text-slate-400 hover:text-white")} style={activeChannel===ch.id?{borderBottom:`2px solid ${ch.color}`}:{}}>
-            # {ch.label}
-            {cnt>0 && activeChannel!==ch.id && <span className="ml-1 inline-flex items-center justify-center min-w-[16px] h-4 px-1 bg-red-500 rounded-full text-[9px] text-white font-bold">{cnt>99?'99+':cnt}</span>}
+          return <button key={ch.id} onClick={()=>setActiveChannel(ch.id)} className={cn("relative px-2 py-1 rounded text-xs font-medium transition-colors", activeChannel===ch.id ? "bg-slate-700 text-white" : "text-slate-400 hover:text-white")}>
+            # {ch.name}
+            {cnt>0 && activeChannel!==ch.id && <span className="ml-1 inline-flex items-center justify-center min-w-[14px] h-3.5 px-0.5 bg-red-500 rounded-full text-[8px] text-white font-bold">{cnt>99?'99+':cnt}</span>}
           </button>;
         })}
+        {tab === 'dms' && <>
+          {(dmChannels||[]).map(dm => {
+            const cnt = unreadChat?.unread?.[dm.id] || 0;
+            return <button key={dm.id} onClick={()=>setActiveChannel(dm.id)} className={cn("relative px-2 py-1 rounded text-xs font-medium transition-colors", activeChannel===dm.id ? "bg-slate-700 text-purple-300" : "text-slate-400 hover:text-white")}>
+              {getDmName(dm)}
+              {cnt>0 && activeChannel!==dm.id && <span className="ml-1 inline-flex items-center justify-center min-w-[14px] h-3.5 px-0.5 bg-red-500 rounded-full text-[8px] text-white font-bold">{cnt}</span>}
+            </button>;
+          })}
+          {/* Quick DM button */}
+          {(allUsers||[]).filter(u => u.id !== profile?.id && u.active).slice(0, 5).map(u => {
+            const hasDm = (dmChannels||[]).some(dm => (dm.members||[]).includes(u.id));
+            if (hasDm) return null;
+            return <button key={u.id} onClick={() => handleOpenDm(u.id)} className="px-2 py-1 rounded text-xs text-slate-500 hover:text-white hover:bg-slate-700/50 transition-colors">+ {u.first_name}</button>;
+          })}
+        </>}
       </div>
       <div className="flex-1 overflow-auto px-4 py-3 space-y-1">
         {loading && <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 text-emerald-400 animate-spin"/></div>}
@@ -2629,7 +2678,7 @@ const ChatSidePanel = memo(({ onClose, allUsers, onlineUsers, unreadChat }) => {
         <div ref={endRef}/>
       </div>
       <div className="px-4 py-3 border-t border-slate-700 flex gap-2">
-        <Input value={msg} onChange={e=>setMsg(e.target.value)} placeholder={`Message dans #${channels.find(c=>c.id===activeChannel)?.label}`} className="flex-1" onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();handleSend();}}}/>
+        <Input value={msg} onChange={e=>setMsg(e.target.value)} placeholder={isDm ? `Message privé...` : `Message dans #${activeLabel}...`} className="flex-1" onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();handleSend();}}}/>
         <Btn variant="primary" size="sm" onClick={handleSend} disabled={sending||!msg.trim()} icon={Send}>{sending?<Loader2 className="w-3 h-3 animate-spin"/>:null}</Btn>
       </div>
     </div>
@@ -3739,21 +3788,30 @@ const ActivityPage = memo(({ onBack }) => {
 });
 
 // =====================================================
-// CHAT PAGE
+// CHAT PAGE — salons dynamiques + messages privés + vision admin
 // =====================================================
-const ChatPage = memo(({ onBack, allUsers, onlineUsers, unreadChat }) => {
-  // Default channel: the one with the most unread, else iti
-  const initialChannel = (() => {
+const ChatPage = memo(({ onBack, allUsers, onlineUsers, unreadChat, chatChannels, isAdmin }) => {
+  const { publicChannels, dmChannels, createPublicChannel, deleteChannel, openDm } = chatChannels || {};
+  const { profile } = useAuth();
+
+  // Default channel: most unread, else first public
+  const initialChannel = useMemo(() => {
     const u = unreadChat?.unread || {};
-    const maxCh = Object.keys(u).reduce((a,b) => (u[a]||0) >= (u[b]||0) ? a : b, 'iti');
-    return (u[maxCh] || 0) > 0 ? maxCh : 'iti';
-  })();
+    const all = [...(publicChannels||[]), ...(dmChannels||[])];
+    if (all.length === 0) return 'general';
+    const maxCh = all.reduce((best, ch) => (u[ch.id]||0) > (u[best.id]||0) ? ch : best, all[0]);
+    return (u[maxCh.id] || 0) > 0 ? maxCh.id : (publicChannels?.[0]?.id || 'general');
+  }, []);
+
   const [activeChannel, setActiveChannel] = useState(initialChannel);
   const { messages, loading, sendMessage, deleteMessage } = useChat(activeChannel);
   const [msg, setMsg] = useState('');
   const [sending, setSending] = useState(false);
+  const [showNewChannel, setShowNewChannel] = useState(false);
+  const [newChannelName, setNewChannelName] = useState('');
+  const [showDmPicker, setShowDmPicker] = useState(false);
+  const [creatingChannel, setCreatingChannel] = useState(false);
   const endRef = useRef(null);
-  const { profile } = useAuth();
 
   useEffect(() => { unreadChat?.markRead?.(activeChannel); }, [activeChannel, unreadChat]);
   useEffect(() => {
@@ -3768,11 +3826,54 @@ const ChatPage = memo(({ onBack, allUsers, onlineUsers, unreadChat }) => {
     finally { setSending(false); }
   };
 
-  const channels = [
-    { id: 'iti', label: 'ITI', color: '#3B82F6', icon: Hash },
-    { id: 'pac', label: 'PAC', color: '#EF4444', icon: Hash },
-    { id: 'general', label: 'Général', color: '#10B981', icon: MessageSquare },
-  ];
+  const handleCreateChannel = async () => {
+    if (!newChannelName.trim() || creatingChannel) return;
+    setCreatingChannel(true);
+    try {
+      const ch = await createPublicChannel(newChannelName.trim());
+      if (ch) { setActiveChannel(ch.id); setShowNewChannel(false); setNewChannelName(''); }
+    } catch(e) { console.warn(e); }
+    finally { setCreatingChannel(false); }
+  };
+
+  const handleOpenDm = async (userId) => {
+    try {
+      const dm = await openDm(userId);
+      if (dm) { setActiveChannel(dm.id); setShowDmPicker(false); }
+    } catch(e) { console.warn(e); }
+  };
+
+  const handleDeleteChannel = async (chId) => {
+    if (!confirm('Supprimer ce salon et tous ses messages ?')) return;
+    try {
+      await deleteChannel(chId);
+      if (activeChannel === chId) setActiveChannel(publicChannels?.[0]?.id || 'general');
+    } catch(e) { console.warn(e); }
+  };
+
+  // Helper: get DM display name
+  const getDmName = (dm) => {
+    const otherId = (dm.members || []).find(id => id !== profile?.id);
+    if (otherId) {
+      const u = (allUsers||[]).find(x => x.id === otherId);
+      if (u) return `${u.first_name} ${u.last_name}`;
+    }
+    // Admin viewing: show both names
+    if (isAdmin && dm.members?.length === 2) {
+      const names = dm.members.map(id => { const u = (allUsers||[]).find(x => x.id === id); return u ? u.first_name : '?'; });
+      return names.join(' ↔ ');
+    }
+    return 'Message privé';
+  };
+
+  // Active channel info
+  const isDm = activeChannel.startsWith('dm_');
+  const activeChObj = [...(publicChannels||[]), ...(dmChannels||[])].find(c => c.id === activeChannel);
+  const activeLabel = isDm ? getDmName(activeChObj || { members: [] }) : (activeChObj?.name || activeChannel);
+
+  // Channel colors (cycle through a palette for custom channels)
+  const palette = ['#3B82F6', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#F97316'];
+  const getColor = (idx) => palette[idx % palette.length];
 
   return <div className="h-screen flex flex-col bg-slate-900">
     <header className="bg-slate-800/60 backdrop-blur-sm border-b border-slate-700/80 px-6 py-3">
@@ -3781,33 +3882,82 @@ const ChatPage = memo(({ onBack, allUsers, onlineUsers, unreadChat }) => {
           <button onClick={onBack} className="p-2 hover:bg-slate-700 rounded-xl text-slate-400 transition-colors"><ChevronLeft className="w-5 h-5"/></button>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg"><MessageSquare className="w-5 h-5 text-white"/></div>
-            <div><h1 className="text-lg font-bold text-white">Chat d'équipe</h1><p className="text-[11px] text-slate-400">Conversations par produit</p></div>
+            <div><h1 className="text-lg font-bold text-white">Chat d'équipe</h1><p className="text-[11px] text-slate-400">Salons & messages privés</p></div>
           </div>
         </div>
       </div>
     </header>
 
     <div className="flex flex-1 overflow-hidden">
-      {/* Sidebar channels */}
-      <div className="w-52 bg-slate-800/40 border-r border-slate-700/60 p-3 flex flex-col gap-1.5">
-        <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider px-2 mb-1">Salons</p>
-        {channels.map(ch => {
-          const ChIcon = ch.icon;
+      {/* Sidebar */}
+      <div className="w-56 bg-slate-800/40 border-r border-slate-700/60 p-3 flex flex-col overflow-y-auto">
+        {/* Public Channels */}
+        <div className="flex items-center justify-between px-2 mb-1">
+          <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Salons</p>
+          {isAdmin && <button onClick={() => setShowNewChannel(!showNewChannel)} className="p-0.5 hover:bg-slate-700 rounded text-slate-400 hover:text-emerald-400 transition-colors" title="Créer un salon"><PlusCircle className="w-3.5 h-3.5"/></button>}
+        </div>
+        {showNewChannel && <div className="px-2 mb-2 flex gap-1">
+          <input value={newChannelName} onChange={e => setNewChannelName(e.target.value)} placeholder="Nom du salon" className="flex-1 bg-slate-700 text-white text-xs rounded px-2 py-1.5 border border-slate-600 focus:border-emerald-500 outline-none" onKeyDown={e => { if (e.key === 'Enter') handleCreateChannel(); }}/>
+          <button onClick={handleCreateChannel} disabled={creatingChannel || !newChannelName.trim()} className="p-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 rounded text-white"><Check className="w-3 h-3"/></button>
+        </div>}
+        {(publicChannels||[]).map((ch, idx) => {
           const cnt = unreadChat?.unread?.[ch.id] || 0;
-          return <button key={ch.id} onClick={() => setActiveChannel(ch.id)} className={cn("flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-all", activeChannel === ch.id ? "bg-emerald-500/15 text-emerald-400 shadow-sm" : "text-slate-400 hover:text-white hover:bg-slate-700/50")}>
-            <ChIcon className="w-4 h-4" style={{ color: activeChannel === ch.id ? ch.color : undefined }}/>
-            <span className="flex-1 text-left">{ch.label}</span>
-            {cnt>0 && activeChannel!==ch.id && <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 bg-red-500 rounded-full text-[10px] text-white font-bold">{cnt>99?'99+':cnt}</span>}
+          const isBuiltIn = ['general','iti','pac'].includes(ch.id);
+          return <button key={ch.id} onClick={() => setActiveChannel(ch.id)} className={cn("group flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-all mb-0.5", activeChannel === ch.id ? "bg-emerald-500/15 text-emerald-400 shadow-sm" : "text-slate-400 hover:text-white hover:bg-slate-700/50")}>
+            <Hash className="w-3.5 h-3.5 flex-shrink-0" style={{ color: activeChannel === ch.id ? getColor(idx) : undefined }}/>
+            <span className="flex-1 text-left truncate">{ch.name}</span>
+            {cnt > 0 && activeChannel !== ch.id && <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 bg-red-500 rounded-full text-[10px] text-white font-bold">{cnt > 99 ? '99+' : cnt}</span>}
+            {isAdmin && !isBuiltIn && <button onClick={e => { e.stopPropagation(); handleDeleteChannel(ch.id); }} className="p-0.5 opacity-0 group-hover:opacity-100 hover:bg-red-500/20 rounded text-red-400 transition-all"><X className="w-3 h-3"/></button>}
           </button>;
         })}
+
+        {/* DM Section */}
+        <div className="flex items-center justify-between px-2 mt-4 mb-1">
+          <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Messages privés</p>
+          <button onClick={() => setShowDmPicker(!showDmPicker)} className="p-0.5 hover:bg-slate-700 rounded text-slate-400 hover:text-emerald-400 transition-colors" title="Nouveau message privé"><PlusCircle className="w-3.5 h-3.5"/></button>
+        </div>
+        {showDmPicker && <div className="px-2 mb-2 bg-slate-700/50 rounded-lg py-2 max-h-48 overflow-y-auto">
+          <p className="text-[9px] text-slate-500 uppercase px-1 mb-1">Choisir un utilisateur</p>
+          {(allUsers||[]).filter(u => u.id !== profile?.id && u.active).map(u => {
+            const isOnline = !!onlineUsers?.[u.id];
+            return <button key={u.id} onClick={() => handleOpenDm(u.id)} className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-slate-600/50 text-left transition-colors">
+              <div className="relative">
+                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white text-[10px] font-bold">{u.first_name?.[0] || '?'}</div>
+                {isOnline && <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-emerald-400 rounded-full border border-slate-700"/>}
+              </div>
+              <span className="text-xs text-slate-300">{u.first_name} {u.last_name}</span>
+            </button>;
+          })}
+        </div>}
+        {(dmChannels||[]).map(dm => {
+          const cnt = unreadChat?.unread?.[dm.id] || 0;
+          const name = getDmName(dm);
+          const otherId = (dm.members || []).find(id => id !== profile?.id);
+          const isOnline = !!onlineUsers?.[otherId];
+          return <button key={dm.id} onClick={() => setActiveChannel(dm.id)} className={cn("flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-all mb-0.5", activeChannel === dm.id ? "bg-purple-500/15 text-purple-400 shadow-sm" : "text-slate-400 hover:text-white hover:bg-slate-700/50")}>
+            <div className="relative flex-shrink-0">
+              <Lock className="w-3.5 h-3.5"/>
+              {isOnline && <div className="absolute -bottom-0.5 -right-0.5 w-1.5 h-1.5 bg-emerald-400 rounded-full"/>}
+            </div>
+            <span className="flex-1 text-left truncate text-xs">{name}</span>
+            {cnt > 0 && activeChannel !== dm.id && <span className="inline-flex items-center justify-center min-w-[16px] h-[16px] px-0.5 bg-red-500 rounded-full text-[9px] text-white font-bold">{cnt > 99 ? '99+' : cnt}</span>}
+          </button>;
+        })}
+
+        {/* Admin: spy indicator */}
+        {isAdmin && dmChannels && dmChannels.length > 0 && <div className="mt-2 px-2">
+          <div className="flex items-center gap-1.5 text-[9px] text-amber-500/70"><EyeOff className="w-3 h-3"/><span>Vision admin activée</span></div>
+        </div>}
+
         <div className="flex-1"/>
+        {/* Online users */}
         {onlineUsers && Object.keys(onlineUsers).length > 0 && <div className="border-t border-slate-700/50 pt-3 mt-2">
           <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider px-2 mb-2">En ligne</p>
           <div className="space-y-1">{(allUsers||[]).filter(u => onlineUsers[u.id]).map(u =>
-            <div key={u.id} className="flex items-center gap-2 px-2 py-1">
+            <button key={u.id} onClick={() => handleOpenDm(u.id)} className="w-full flex items-center gap-2 px-2 py-1 hover:bg-slate-700/50 rounded transition-colors cursor-pointer">
               <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"/>
               <span className="text-xs text-slate-300">{u.first_name} {u.last_name}</span>
-            </div>
+            </button>
           )}</div>
         </div>}
       </div>
@@ -3816,21 +3966,22 @@ const ChatPage = memo(({ onBack, allUsers, onlineUsers, unreadChat }) => {
       <div className="flex-1 flex flex-col">
         {/* Channel header */}
         <div className="px-5 py-3 border-b border-slate-700/50 flex items-center gap-2">
-          <Hash className="w-4 h-4" style={{ color: channels.find(c=>c.id===activeChannel)?.color }}/>
-          <span className="text-white font-semibold text-sm">{channels.find(c=>c.id===activeChannel)?.label}</span>
+          {isDm ? <Lock className="w-4 h-4 text-purple-400"/> : <Hash className="w-4 h-4 text-emerald-400"/>}
+          <span className="text-white font-semibold text-sm">{activeLabel}</span>
+          {isDm && <span className="text-[10px] text-purple-400/60 ml-1">Message privé</span>}
           <span className="text-xs text-slate-500 ml-2">{messages.length} messages</span>
+          {isDm && isAdmin && activeChObj && !(activeChObj.members||[]).includes(profile?.id) && <span className="ml-auto text-[9px] text-amber-500 flex items-center gap-1"><Eye className="w-3 h-3"/>Mode observation</span>}
         </div>
 
         {/* Messages */}
         <div className="flex-1 overflow-auto px-5 py-4 space-y-1">
           {loading && <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 text-emerald-400 animate-spin"/></div>}
-          {!loading && messages.length === 0 && <div className="text-center py-16"><MessageSquare className="w-12 h-12 text-slate-600 mx-auto mb-4"/><p className="text-slate-400">Aucun message dans ce salon</p><p className="text-xs text-slate-500 mt-1">Soyez le premier à écrire !</p></div>}
+          {!loading && messages.length === 0 && <div className="text-center py-16"><MessageSquare className="w-12 h-12 text-slate-600 mx-auto mb-4"/><p className="text-slate-400">{isDm ? 'Aucun message dans cette conversation' : 'Aucun message dans ce salon'}</p><p className="text-xs text-slate-500 mt-1">Soyez le premier à écrire !</p></div>}
           {messages.map((m, i) => {
             const isMe = m.user_id === profile?.id;
             const prev = i > 0 ? messages[i-1] : null;
             const showHeader = !prev || prev.user_id !== m.user_id || (new Date(m.created_at) - new Date(prev.created_at) > 300000);
             const isOnline = !!onlineUsers?.[m.user_id];
-            // Fallback: lookup dans allUsers si le join FK a échoué
             const userObj = m.profile || (allUsers||[]).find(u => u.id === m.user_id) || {};
             return <div key={m.id} className={cn("group", showHeader && "mt-3")}>
               {showHeader && <div className="flex items-center gap-2 mb-1">
@@ -3850,13 +4001,19 @@ const ChatPage = memo(({ onBack, allUsers, onlineUsers, unreadChat }) => {
           <div ref={endRef}/>
         </div>
 
-        {/* Input */}
-        <div className="px-5 py-3 border-t border-slate-700/50 bg-slate-800/30">
-          <div className="flex items-center gap-3">
-            <Input value={msg} onChange={e => setMsg(e.target.value)} placeholder={`Message dans #${channels.find(c=>c.id===activeChannel)?.label}...`} className="flex-1 py-3" onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}/>
-            <Btn variant="primary" onClick={handleSend} disabled={sending || !msg.trim()} icon={Send}>{sending ? <Loader2 className="w-4 h-4 animate-spin"/> : null}</Btn>
+        {/* Input — admin en observation ne peut pas écrire dans un DM qui n'est pas le sien */}
+        {(!isDm || !isAdmin || (activeChObj?.members||[]).includes(profile?.id)) ? (
+          <div className="px-5 py-3 border-t border-slate-700/50 bg-slate-800/30">
+            <div className="flex items-center gap-3">
+              <Input value={msg} onChange={e => setMsg(e.target.value)} placeholder={isDm ? `Message privé...` : `Message dans #${activeLabel}...`} className="flex-1 py-3" onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}/>
+              <Btn variant="primary" onClick={handleSend} disabled={sending || !msg.trim()} icon={Send}>{sending ? <Loader2 className="w-4 h-4 animate-spin"/> : null}</Btn>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="px-5 py-3 border-t border-slate-700/50 bg-slate-800/30 text-center">
+            <p className="text-xs text-amber-500/70 flex items-center justify-center gap-1.5"><Eye className="w-3.5 h-3.5"/>Mode observation — vous ne pouvez pas écrire dans cette conversation privée</p>
+          </div>
+        )}
       </div>
     </div>
   </div>;

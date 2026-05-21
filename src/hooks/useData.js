@@ -1387,6 +1387,120 @@ export function usePresence(userId, userInfo) {
 }
 
 /* ============================
+   HOOK: useChatChannels — dynamic channel list + create + DM
+   ============================ */
+export function useChatChannels() {
+  const { profile, isAdmin } = useAuth();
+  const [channels, setChannels] = useState([]);   // { id, name, type, created_by, members? }
+  const [loading, setLoading] = useState(true);
+
+  const fetchChannels = useCallback(async () => {
+    if (!profile) return;
+    try {
+      // Fetch channels the user can see (RLS handles visibility)
+      const { data: chans, error } = await supabase
+        .from('chat_channels')
+        .select('*')
+        .order('created_at', { ascending: true });
+      if (error) throw error;
+
+      // For DM channels, fetch members to display the other person's name
+      const dmChans = (chans || []).filter(c => c.type === 'dm');
+      let dmMembers = {};
+      if (dmChans.length > 0) {
+        const { data: members } = await supabase
+          .from('chat_dm_members')
+          .select('channel_id, user_id')
+          .in('channel_id', dmChans.map(c => c.id));
+        if (members) {
+          members.forEach(m => {
+            if (!dmMembers[m.channel_id]) dmMembers[m.channel_id] = [];
+            dmMembers[m.channel_id].push(m.user_id);
+          });
+        }
+      }
+
+      const enriched = (chans || []).map(c => ({
+        ...c,
+        members: dmMembers[c.id] || []
+      }));
+      setChannels(enriched);
+    } catch (e) {
+      if (import.meta.env.DEV) console.warn('useChatChannels error:', e);
+    } finally {
+      setLoading(false);
+    }
+  }, [profile, isAdmin]);
+
+  useEffect(() => { fetchChannels(); }, [fetchChannels]);
+
+  // Realtime: listen for new channels
+  useEffect(() => {
+    if (!profile) return;
+    const ch = supabase.channel(`chat_channels_${profile.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_channels' }, () => {
+        fetchChannels();
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [profile, fetchChannels]);
+
+  // Create a public channel (admin only)
+  const createPublicChannel = useCallback(async (name) => {
+    if (!profile || !isAdmin) return null;
+    const id = name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+    if (!id) return null;
+    const { data, error } = await supabase.from('chat_channels').insert([{
+      id, name, type: 'public', created_by: profile.id
+    }]).select().single();
+    if (error) throw error;
+    await fetchChannels();
+    return data;
+  }, [profile, isAdmin, fetchChannels]);
+
+  // Delete a public channel (admin only)
+  const deleteChannel = useCallback(async (channelId) => {
+    if (!profile || !isAdmin) return;
+    // First delete all messages in this channel
+    await supabase.from('chat_messages').delete().eq('channel', channelId);
+    const { error } = await supabase.from('chat_channels').delete().eq('id', channelId);
+    if (error) throw error;
+    await fetchChannels();
+  }, [profile, isAdmin, fetchChannels]);
+
+  // Open or create a DM conversation between current user and another user
+  const openDm = useCallback(async (otherUserId) => {
+    if (!profile || !otherUserId) return null;
+    const [a, b] = [profile.id, otherUserId].sort();
+    const dmId = `dm_${a.slice(0, 8)}_${b.slice(0, 8)}`;
+
+    // Check if it already exists
+    const existing = channels.find(c => c.id === dmId);
+    if (existing) return existing;
+
+    // Create channel + members
+    const { error: chErr } = await supabase.from('chat_channels').insert([{
+      id: dmId, name: 'DM', type: 'dm', created_by: profile.id
+    }]);
+    if (chErr && chErr.code !== '23505') throw chErr; // 23505 = unique violation = already exists
+
+    // Insert both members (ignore if already exist)
+    await supabase.from('chat_dm_members').upsert([
+      { channel_id: dmId, user_id: a },
+      { channel_id: dmId, user_id: b }
+    ], { onConflict: 'channel_id,user_id' });
+
+    await fetchChannels();
+    return { id: dmId, name: 'DM', type: 'dm', members: [a, b] };
+  }, [profile, channels, fetchChannels]);
+
+  const publicChannels = useMemo(() => channels.filter(c => c.type === 'public'), [channels]);
+  const dmChannels = useMemo(() => channels.filter(c => c.type === 'dm'), [channels]);
+
+  return { channels, publicChannels, dmChannels, loading, createPublicChannel, deleteChannel, openDm, refresh: fetchChannels };
+}
+
+/* ============================
    HOOK: useChat (realtime chat by channel)
    Optimistic send + realtime INSERT dedup by id
    ============================ */
@@ -1522,11 +1636,10 @@ export function useChat(channel) {
 }
 
 /* ============================
-   HOOK: useUnreadChat — global unread counts per channel
+   HOOK: useUnreadChat — global unread counts per channel (dynamic)
    Tracks last-read timestamps per channel in localStorage
    Updates via realtime on chat_messages INSERT (any channel)
    ============================ */
-const CHAT_CHANNELS = ['general', 'iti', 'pac'];
 const LS_KEY = 'rs_chat_last_read_v1';
 
 function readLastRead() {
@@ -1540,20 +1653,22 @@ function writeLastRead(obj) {
   try { localStorage.setItem(LS_KEY, JSON.stringify(obj || {})); } catch {}
 }
 
-export function useUnreadChat() {
+export function useUnreadChat(channelIds) {
   const { profile } = useAuth();
-  const [unread, setUnread] = useState({ general: 0, iti: 0, pac: 0 });
-  const [lastMessageAt, setLastMessageAt] = useState(null); // Used by consumers for "ping" animations
-  const [pingKey, setPingKey] = useState(0); // increments every time a new message from someone else arrives
+  const [unread, setUnread] = useState({});
+  const [lastMessageAt, setLastMessageAt] = useState(null);
+  const [pingKey, setPingKey] = useState(0);
   const lastReadRef = useRef(readLastRead());
+  const channelIdsKey = (channelIds || []).join(',');
 
   const recompute = useCallback(async () => {
     if (!profile) return;
+    const ids = channelIds || [];
+    if (ids.length === 0) return;
     const lr = lastReadRef.current || {};
-    const out = { general: 0, iti: 0, pac: 0 };
+    const out = {};
     try {
-      // Parallel count queries per channel
-      const results = await Promise.all(CHAT_CHANNELS.map(async ch => {
+      const results = await Promise.all(ids.map(async ch => {
         const since = lr[ch] || '1970-01-01T00:00:00Z';
         const { count, error } = await supabase
           .from('chat_messages')
@@ -1569,7 +1684,7 @@ export function useUnreadChat() {
     } catch(e) {
       if (import.meta.env.DEV) console.warn('useUnreadChat recompute error:', e);
     }
-  }, [profile]);
+  }, [profile, channelIdsKey]);
 
   useEffect(() => { recompute(); }, [recompute]);
 
@@ -1580,7 +1695,7 @@ export function useUnreadChat() {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, payload => {
         const row = payload.new;
         if (!row || !row.channel) return;
-        if (row.user_id === profile.id) return; // our own message
+        if (row.user_id === profile.id) return;
         const lr = lastReadRef.current || {};
         const since = lr[row.channel] || '1970-01-01T00:00:00Z';
         if (new Date(row.created_at) > new Date(since)) {
@@ -1608,13 +1723,17 @@ export function useUnreadChat() {
   const markAllRead = useCallback(() => {
     const now = new Date().toISOString();
     const lr = { ...(lastReadRef.current || {}) };
-    CHAT_CHANNELS.forEach(c => { lr[c] = now; });
+    (channelIds || []).forEach(c => { lr[c] = now; });
     lastReadRef.current = lr;
     writeLastRead(lr);
-    setUnread({ general: 0, iti: 0, pac: 0 });
-  }, []);
+    setUnread(prev => {
+      const out = { ...prev };
+      (channelIds || []).forEach(c => { out[c] = 0; });
+      return out;
+    });
+  }, [channelIdsKey]);
 
-  const total = (unread.general || 0) + (unread.iti || 0) + (unread.pac || 0);
+  const total = Object.values(unread).reduce((s, n) => s + (n || 0), 0);
 
   return { unread, total, markRead, markAllRead, lastMessageAt, pingKey, refresh: recompute };
 }
