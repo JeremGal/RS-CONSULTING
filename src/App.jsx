@@ -3944,10 +3944,6 @@ const ChatPage = memo(({ onBack, allUsers, onlineUsers, unreadChat, chatChannels
           </button>;
         })}
 
-        {/* Admin: spy indicator */}
-        {isAdmin && dmChannels && dmChannels.length > 0 && <div className="mt-2 px-2">
-          <div className="flex items-center gap-1.5 text-[9px] text-amber-500/70"><EyeOff className="w-3 h-3"/><span>Vision admin activée</span></div>
-        </div>}
 
         <div className="flex-1"/>
         {/* Online users */}
@@ -3970,7 +3966,6 @@ const ChatPage = memo(({ onBack, allUsers, onlineUsers, unreadChat, chatChannels
           <span className="text-white font-semibold text-sm">{activeLabel}</span>
           {isDm && <span className="text-[10px] text-purple-400/60 ml-1">Message privé</span>}
           <span className="text-xs text-slate-500 ml-2">{messages.length} messages</span>
-          {isDm && isAdmin && activeChObj && !(activeChObj.members||[]).includes(profile?.id) && <span className="ml-auto text-[9px] text-amber-500 flex items-center gap-1"><Eye className="w-3 h-3"/>Mode observation</span>}
         </div>
 
         {/* Messages */}
@@ -4011,7 +4006,7 @@ const ChatPage = memo(({ onBack, allUsers, onlineUsers, unreadChat, chatChannels
           </div>
         ) : (
           <div className="px-5 py-3 border-t border-slate-700/50 bg-slate-800/30 text-center">
-            <p className="text-xs text-amber-500/70 flex items-center justify-center gap-1.5"><Eye className="w-3.5 h-3.5"/>Mode observation — vous ne pouvez pas écrire dans cette conversation privée</p>
+            <p className="text-xs text-slate-500 text-center">Conversation privée</p>
           </div>
         )}
       </div>
