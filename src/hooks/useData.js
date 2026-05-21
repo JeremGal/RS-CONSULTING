@@ -1514,27 +1514,21 @@ export function useChat(channel) {
   const fetchMessages = useCallback(async () => {
     if (!profile || !channel) return;
     try {
-      let data, error;
-      try {
-        const r = await supabase
-          .from('chat_messages')
-          .select('*, profile:profiles(id, first_name, last_name, role)')
-          .eq('channel', channel)
-          .order('created_at', { ascending: true })
-          .limit(200);
-        data = r.data; error = r.error;
-      } catch (e) { error = e; }
-      if (error || !data) {
-        const r2 = await supabase
-          .from('chat_messages')
-          .select('id, channel, user_id, content, created_at')
-          .eq('channel', channel)
-          .order('created_at', { ascending: true })
-          .limit(200);
-        if (r2.error) throw r2.error;
-        data = r2.data;
-      }
-      setMessages(data || []);
+      const { data, error } = await supabase
+        .from('chat_messages')
+        .select('id, channel, user_id, content, created_at')
+        .eq('channel', channel)
+        .order('created_at', { ascending: true })
+        .limit(200);
+      if (error) throw error;
+      if (!data || data.length === 0) { setMessages([]); return; }
+      // Batch-fetch profiles for all unique user_ids
+      const uids = [...new Set(data.map(m => m.user_id).filter(Boolean))];
+      const { data: profiles } = await supabase.from('profiles').select('id, first_name, last_name, role').in('id', uids);
+      const profileMap = {};
+      (profiles || []).forEach(p => { profileMap[p.id] = p; });
+      const enriched = data.map(m => ({ ...m, profile: profileMap[m.user_id] || null }));
+      setMessages(enriched);
     } catch (e) {
       if (import.meta.env.DEV) console.warn('Chat fetch error:', e);
       setMessages([]);
@@ -1566,12 +1560,12 @@ export function useChat(channel) {
             : newRow;
           return [...prev, withProfile];
         });
-        // If message is from someone else and profile join is missing, refetch quickly for the profile info
-        if (newRow.user_id !== profile.id && !newRow.profile) {
+        // If message is from someone else, fetch their profile info separately
+        if (newRow.user_id !== profile.id) {
           setTimeout(() => {
-            supabase.from('chat_messages').select('*, profile:profiles(id, first_name, last_name, role)').eq('id', newRow.id).single()
-              .then(({ data }) => {
-                if (data) setMessages(prev => prev.map(m => m.id === data.id ? data : m));
+            supabase.from('profiles').select('id, first_name, last_name, role').eq('id', newRow.user_id).single()
+              .then(({ data: prof }) => {
+                if (prof) setMessages(prev => prev.map(m => m.id === newRow.id && !m.profile ? { ...m, profile: prof } : m));
               }).catch(() => {});
           }, 200);
         }
