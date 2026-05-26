@@ -493,61 +493,16 @@ export function useCounts() {
 
   const fetchCounts = useCallback(async () => {
     try {
-      if (isAdmin) {
-        const { data, error } = await supabase.rpc('get_prospect_counts');
-        if (error) {
-          warn('get_prospect_counts RPC failed, using fallback:', error.message);
-          const { count } = await supabase.from('prospects').select('id', { count: 'exact', head: true });
-          setCounts(c => ({ ...c, total: count || 0 }));
-          return;
-        }
-        if (data) setCounts(data);
-        // Supplement with source + type_projet counts (not in RPC)
-        try {
-          const { data: srcRows } = await supabase.from('prospects').select('source_id,type_projet');
-          if (srcRows) {
-            const by_source = {};
-            let proCount = 0, partCount = 0;
-            srcRows.forEach(p => {
-              if (p.source_id) by_source[p.source_id] = (by_source[p.source_id]||0) + 1;
-              else by_source['none'] = (by_source['none']||0) + 1;
-              if (p.type_projet === 'pro') proCount++;
-              if (p.type_projet === 'particulier') partCount++;
-            });
-            setCounts(c => ({ ...c, by_source, type_projet_pro: proCount, type_projet_particulier: partCount }));
-          }
-        } catch(e) { /* ignore */ }
-      } else {
-        // Non-admin: use search_prospects RPC (SECURITY DEFINER, handles source-linked visibility)
-        try {
-          const { data: rpcData } = await supabase.rpc('search_prospects', {
-            p_search: '', p_page: 1, p_per_page: 10000
-          });
-          const ps = rpcData?.data || [];
-          const by_status = {}, by_product = {}, by_category = {}, by_installer = {}, by_source = {};
-          ps.forEach(p => {
-            if (p.status_id) by_status[p.status_id] = (by_status[p.status_id]||0) + 1;
-            if (p.product_id) by_product[p.product_id] = (by_product[p.product_id]||0) + 1;
-            else by_product['none'] = (by_product['none']||0) + 1;
-            if (p.category_id) by_category[p.category_id] = (by_category[p.category_id]||0) + 1;
-            if (p.installer_id) by_installer[p.installer_id] = (by_installer[p.installer_id]||0) + 1;
-            if (p.source_id) by_source[p.source_id] = (by_source[p.source_id]||0) + 1;
-            else by_source['none'] = (by_source['none']||0) + 1;
-          });
-          setCounts({
-            total: rpcData?.total || ps.length,
-            clients: ps.filter(p => p.is_client).length,
-            prospects: ps.filter(p => !p.is_client).length,
-            transmis: ps.filter(p => p.transmis_installateur).length,
-            type_projet_pro: ps.filter(p => p.type_projet === 'pro').length,
-            type_projet_particulier: ps.filter(p => p.type_projet === 'particulier').length,
-            by_status, by_product, by_category, by_installer, by_source,
-            by_user: {}, unassigned: 0
-          });
-        } catch(e) { warn('Non-admin counts via RPC failed:', e); }
+      const { data, error } = await supabase.rpc('get_prospect_counts');
+      if (error) {
+        warn('get_prospect_counts RPC failed:', error.message);
+        const { count } = await supabase.from('prospects').select('id', { count: 'exact', head: true });
+        setCounts(c => ({ ...c, total: count || 0 }));
+        return;
       }
+      if (data) setCounts(data);
     } catch (e) { warn('Counts error:', e); }
-  }, [profile, isAdmin]);
+  }, [profile]);
 
   useEffect(() => {
     if (!profile) return;
