@@ -972,7 +972,7 @@ const MainApp = memo(({ themeBtn }) => {
           </div>
 
           {/* Provenance (admin only) */}
-          {isAdmin && sources && sources.length > 0 && <div>
+          {sources && sources.length > 0 && <div>
             <div className="text-[10px] font-semibold text-slate-500 uppercase mb-1.5 flex items-center gap-1.5"><Zap className="w-3 h-3"/> Provenance</div>
             <div className="space-y-0.5">
               <FilterButton active={!params.sourceIds?.length} onClick={()=>setFilter('sourceIds',[])} count={counts.total}>Toutes</FilterButton>
@@ -1080,7 +1080,7 @@ const MainApp = memo(({ themeBtn }) => {
 
                     <th className="px-2 py-3 hidden lg:table-cell w-16">Transmis</th>
                     {isAdmin&&<th className="px-2 py-3 hidden xl:table-cell">Assigné</th>}
-                    {isAdmin&&<th className="px-2 py-3 hidden xl:table-cell">Provenance</th>}
+                    <th className="px-2 py-3 hidden xl:table-cell">Provenance</th>
                     <th className="px-2 py-3 hidden md:table-cell">Rappel</th>
                     <th className="px-2 py-3 hidden lg:table-cell cursor-pointer hover:text-white" onClick={()=>setSort('created_at')}><span className="flex items-center gap-1">Créé le {params.sortCol==='created_at'&&(params.sortDir==='asc'?<ArrowUp className="w-3 h-3"/>:<ArrowDown className="w-3 h-3"/>)}</span></th>
                     <th className="px-2 py-3 cursor-pointer hover:text-white" onClick={()=>setSort('updated_at')}><span className="flex items-center gap-1">Modifié {params.sortCol==='updated_at'&&(params.sortDir==='asc'?<ArrowUp className="w-3 h-3"/>:<ArrowDown className="w-3 h-3"/>)}</span></th>
@@ -1103,7 +1103,7 @@ const MainApp = memo(({ themeBtn }) => {
                     {isAdmin&&<td className="px-2 py-2.5 hidden xl:table-cell">
                       {(()=>{const au=(p.assignedUsers||[]).filter(u=>u.role==='user');return au.length>0 ? <div className="flex -space-x-1.5">{au.slice(0,3).map((u,i)=><div key={i} className="w-6 h-6 bg-emerald-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold border-2 border-slate-900" title={`${u.first_name} ${u.last_name}`}>{u.first_name?.[0]}</div>)}{au.length>3&&<div className="w-6 h-6 bg-slate-600 rounded-full flex items-center justify-center text-white text-[10px] border-2 border-slate-900">+{au.length-3}</div>}</div> : <span className="text-slate-500 text-xs">—</span>})()}
                     </td>}
-                    {isAdmin&&<td className="px-2 py-2.5 hidden xl:table-cell">{p.source ? <Badge color={p.source.color} small>{p.source.name}</Badge> : <span className="text-slate-600 text-xs">—</span>}</td>}
+                    <td className="px-2 py-2.5 hidden xl:table-cell">{p.source ? <Badge color={p.source.color} small>{p.source.name}</Badge> : <span className="text-slate-600 text-xs">—</span>}</td>
                     <td className="px-2 py-2.5 hidden md:table-cell">{(()=>{
                       const rem = reminderMap[p.id];
                       if (!rem) return <span className="text-slate-600 text-xs">—</span>;
@@ -1530,7 +1530,7 @@ const DetailPage = memo(({ prospect: prospectProp, onClose, onUpdate, onDelete, 
                 {prospect.categorie_aide&&<Badge color={categorieAideColors[prospect.categorie_aide]} small>Profil {prospect.categorie_aide}</Badge>}
                 {prospect.has_vmc&&<Badge color="#14B8A6" small>VMC</Badge>}
                 {prospect.closer&&<Badge color="#F97316" small>🎯 {prospect.closer.first_name} {prospect.closer.last_name}</Badge>}
-                {isAdmin&&prospect.source&&<Badge color={prospect.source.color||'#6B7280'} small>📍 {prospect.source.name}</Badge>}
+                {prospect.source&&<Badge color={prospect.source.color||'#6B7280'} small>📍 {prospect.source.name}</Badge>}
                 {isAdmin&&assignedUsers.length>0&&<span className="text-xs text-slate-400">• {assignedUsers.map(u=>u.first_name).join(', ')}</span>}
               </div>
             </div>
@@ -2579,12 +2579,14 @@ const ChatSidePanel = memo(({ onClose, allUsers, onlineUsers, unreadChat, chatCh
   const [msg, setMsg] = useState('');
   const [sending, setSending] = useState(false);
   const endRef = useRef(null);
+  const markReadRef = useRef(unreadChat?.markRead);
+  markReadRef.current = unreadChat?.markRead;
 
-  useEffect(() => { unreadChat?.markRead?.(activeChannel); }, [activeChannel, unreadChat]);
+  useEffect(() => { markReadRef.current?.(activeChannel); }, [activeChannel]);
   useEffect(() => {
-    if (messages.length > 0) unreadChat?.markRead?.(activeChannel);
+    if (messages.length > 0) markReadRef.current?.(activeChannel);
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, activeChannel, unreadChat]);
+  }, [messages, activeChannel]);
 
   const handleSend = async () => {
     if (!msg.trim() || sending) return;
@@ -3812,12 +3814,14 @@ const ChatPage = memo(({ onBack, allUsers, onlineUsers, unreadChat, chatChannels
   const [showDmPicker, setShowDmPicker] = useState(false);
   const [creatingChannel, setCreatingChannel] = useState(false);
   const endRef = useRef(null);
+  const markReadRef = useRef(unreadChat?.markRead);
+  markReadRef.current = unreadChat?.markRead;
 
-  useEffect(() => { unreadChat?.markRead?.(activeChannel); }, [activeChannel, unreadChat]);
+  useEffect(() => { markReadRef.current?.(activeChannel); }, [activeChannel]);
   useEffect(() => {
-    if (messages.length > 0) unreadChat?.markRead?.(activeChannel);
+    if (messages.length > 0) markReadRef.current?.(activeChannel);
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, activeChannel, unreadChat]);
+  }, [messages, activeChannel]);
 
   const handleSend = async () => {
     if (!msg.trim() || sending) return;

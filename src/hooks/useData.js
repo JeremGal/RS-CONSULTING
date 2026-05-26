@@ -1497,7 +1497,8 @@ export function useChatChannels() {
   const publicChannels = useMemo(() => channels.filter(c => c.type === 'public'), [channels]);
   const dmChannels = useMemo(() => channels.filter(c => c.type === 'dm'), [channels]);
 
-  return { channels, publicChannels, dmChannels, loading, createPublicChannel, deleteChannel, openDm, refresh: fetchChannels };
+  return useMemo(() => ({ channels, publicChannels, dmChannels, loading, createPublicChannel, deleteChannel, openDm, refresh: fetchChannels }),
+    [channels, publicChannels, dmChannels, loading, createPublicChannel, deleteChannel, openDm, fetchChannels]);
 }
 
 /* ============================
@@ -1729,5 +1730,6 @@ export function useUnreadChat(channelIds) {
 
   const total = Object.values(unread).reduce((s, n) => s + (n || 0), 0);
 
-  return { unread, total, markRead, markAllRead, lastMessageAt, pingKey, refresh: recompute };
+  return useMemo(() => ({ unread, total, markRead, markAllRead, lastMessageAt, pingKey, refresh: recompute }),
+    [unread, total, markRead, markAllRead, lastMessageAt, pingKey, recompute]);
 }
